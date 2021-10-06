@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package node
 
 import (
+	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ func TestLedgerConfig(t *testing.T) {
 				"ledger.state.stateDatabase": "goleveldb",
 			},
 			expected: &ledger.Config{
+				LedgerType: commonledger.Blockchain,
 				RootFSPath: "/peerfs/ledgersData",
 				StateDBConfig: &ledger.StateDBConfig{
 					StateDatabase: "goleveldb",
@@ -63,6 +65,7 @@ func TestLedgerConfig(t *testing.T) {
 				"ledger.state.couchDBConfig.cacheSize":             64,
 			},
 			expected: &ledger.Config{
+				LedgerType: commonledger.Blockchain,
 				RootFSPath: "/peerfs/ledgersData",
 				StateDBConfig: &ledger.StateDBConfig{
 					StateDatabase: "CouchDB",
@@ -96,8 +99,9 @@ func TestLedgerConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "CouchDB Explicit",
+			name: "CouchDB Explicit and blockmatrix",
 			config: map[string]interface{}{
+				"ledger.blockmatrix":                                      "",
 				"peer.fileSystemPath":                                     "/peerfs",
 				"ledger.state.stateDatabase":                              "CouchDB",
 				"ledger.state.couchDBConfig.couchDBAddress":               "localhost:5984",
@@ -119,6 +123,7 @@ func TestLedgerConfig(t *testing.T) {
 				"ledger.snapshots.rootDir":                                "/peerfs/customLocationForsnapshots",
 			},
 			expected: &ledger.Config{
+				LedgerType: commonledger.Blockmatrix,
 				RootFSPath: "/peerfs/ledgersData",
 				StateDBConfig: &ledger.StateDBConfig{
 					StateDatabase: "CouchDB",

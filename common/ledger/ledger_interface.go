@@ -20,6 +20,17 @@ import (
 	"github.com/hyperledger/fabric-protos-go/common"
 )
 
+const (
+	Blockchain  Type = 0
+	Blockmatrix Type = 1
+)
+
+type Type int
+
+func (l Type) IsBlockmatrix() bool {
+	return l == Blockmatrix
+}
+
 // Ledger captures the methods that are common across the 'PeerLedger', 'OrdererLedger', and 'ValidatedLedger'
 type Ledger interface {
 	// GetBlockchainInfo returns basic info about blockchain

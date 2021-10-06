@@ -38,10 +38,12 @@ type Initializer struct {
 	Config                          *Config
 	CustomTxProcessors              map[common.HeaderType]CustomTxProcessor
 	HashProvider                    HashProvider
+	LedgerType                      commonledger.Type
 }
 
 // Config is a structure used to configure a ledger provider.
 type Config struct {
+	LedgerType commonledger.Type
 	// RootFSPath is the top-level directory where ledger files are stored.
 	RootFSPath string
 	// StateDBConfig holds the configuration parameters for the state database.

@@ -14,6 +14,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
+	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
@@ -67,6 +68,7 @@ type Provider struct {
 	collElgNotifier      *collElgNotifier
 	stats                *stats
 	fileLock             *leveldbhelper.FileLock
+	ledgerType           commonledger.Type
 }
 
 // NewProvider instantiates a new Provider.
@@ -75,6 +77,8 @@ func NewProvider(initializer *ledger.Initializer) (pr *Provider, e error) {
 	p := &Provider{
 		initializer: initializer,
 	}
+
+	p.ledgerType = initializer.LedgerType
 
 	defer func() {
 		if e != nil {
@@ -139,6 +143,7 @@ func (p *Provider) initLedgerIDInventory() error {
 
 func (p *Provider) initBlockStoreProvider() error {
 	indexConfig := &blkstorage.IndexConfig{AttrsToIndex: attrsToIndex}
+	// DBM todo switch case on p.LT
 	blkStoreProvider, err := blkstorage.NewProvider(
 		blkstorage.NewConf(
 			BlockStorePath(p.initializer.Config.RootFSPath),
