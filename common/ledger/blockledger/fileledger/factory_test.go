@@ -9,6 +9,7 @@ package fileledger
 import (
 	"errors"
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -52,7 +53,7 @@ func TestBlockStoreProviderErrors(t *testing.T) {
 	t.Run("open", func(t *testing.T) {
 		f, mockBlockStoreProvider := setup(nil)
 		mockBlockStoreProvider.OpenReturns(nil, errors.New("woogie"))
-		_, err := f.GetOrCreate("foo")
+		_, err := f.GetOrCreate("foo", ledger.Blockchain)
 		require.EqualError(t, err, "woogie")
 		require.Empty(t, f.ledgers, "Expected no new ledger is created")
 	})
@@ -98,21 +99,21 @@ func TestMultiReinitialization(t *testing.T) {
 
 	f, err := New(dir, metricsProvider)
 	require.NoError(t, err)
-	_, err = f.GetOrCreate("testchannelid")
+	_, err = f.GetOrCreate("testchannelid", ledger.Blockchain)
 	require.NoError(t, err, "Error GetOrCreate channel")
 	require.Equal(t, 1, len(f.ChannelIDs()), "Expected 1 channel")
 	f.Close()
 
 	f, err = New(dir, metricsProvider)
 	require.NoError(t, err)
-	_, err = f.GetOrCreate("foo")
+	_, err = f.GetOrCreate("foo", ledger.Blockchain)
 	require.NoError(t, err, "Error creating channel")
 	require.Equal(t, 2, len(f.ChannelIDs()), "Expected channel to be recovered")
 	f.Close()
 
 	f, err = New(dir, metricsProvider)
 	require.NoError(t, err)
-	_, err = f.GetOrCreate("bar")
+	_, err = f.GetOrCreate("bar", ledger.Blockchain)
 	require.NoError(t, err, "Error creating channel")
 	require.Equal(t, 3, len(f.ChannelIDs()), "Expected channel to be recovered")
 	f.Close()

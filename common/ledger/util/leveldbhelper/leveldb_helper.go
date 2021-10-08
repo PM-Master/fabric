@@ -172,6 +172,10 @@ func (dbInst *DB) WriteBatch(batch *leveldb.Batch, sync bool) error {
 	return nil
 }
 
+func (dbInst *DB) OpenTx() (*leveldb.Transaction, error) {
+	return dbInst.db.OpenTransaction()
+}
+
 // FileLock encapsulate the DB that holds the file lock.
 // As the FileLock to be used by a single process/goroutine,
 // there is no need for the semaphore to synchronize the

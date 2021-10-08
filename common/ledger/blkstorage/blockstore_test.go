@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"testing"
 
 	"github.com/hyperledger/fabric/common/ledger/testutil"
@@ -19,7 +20,7 @@ func TestWrongBlockNumber(t *testing.T) {
 	defer env.Cleanup()
 
 	provider := env.provider
-	store, _ := provider.Open("testLedger")
+	store, _ := provider.Open("testLedger", ledger.Blockchain)
 	defer store.Shutdown()
 
 	blocks := testutil.ConstructTestBlocks(t, 5)
@@ -36,7 +37,7 @@ func TestTxIDIndexErrorPropagations(t *testing.T) {
 	defer env.Cleanup()
 
 	provider := env.provider
-	store, _ := provider.Open("testLedger")
+	store, _ := provider.Open("testLedger", ledger.Blockchain)
 	defer store.Shutdown()
 	blocks := testutil.ConstructTestBlocks(t, 3)
 	for i := 0; i < 3; i++ {

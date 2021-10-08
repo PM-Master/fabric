@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"testing"
 
@@ -45,10 +46,10 @@ func TestMultipleBlockStores(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, subdirs)
 
-	store1, err := provider.Open("ledger1")
+	store1, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 	defer store1.Shutdown()
-	store2, err := provider.Open("ledger2")
+	store2, err := provider.Open("ledger2", ledger.Blockchain)
 	require.NoError(t, err)
 	defer store2.Shutdown()
 
@@ -73,10 +74,10 @@ func TestMultipleBlockStores(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, subdirs, 2)
 
-	newstore1, err := newprovider.Open("ledger1")
+	newstore1, err := newprovider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 	defer newstore1.Shutdown()
-	newstore2, err := newprovider.Open("ledger2")
+	newstore2, err := newprovider.Open("ledger2", ledger.Blockchain)
 	require.NoError(t, err)
 	defer newstore2.Shutdown()
 
@@ -171,7 +172,7 @@ func TestBlockStoreProvider(t *testing.T) {
 	var stores []*BlockStore
 	numStores := 10
 	for i := 0; i < numStores; i++ {
-		store, _ := provider.Open(constructLedgerid(i))
+		store, _ := provider.Open(constructLedgerid(i), ledger.Blockchain)
 		defer store.Shutdown()
 		stores = append(stores, store)
 	}
@@ -198,10 +199,10 @@ func TestDrop(t *testing.T) {
 	defer env.Cleanup()
 
 	provider := env.provider
-	store1, err := provider.Open("ledger1")
+	store1, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 	defer store1.Shutdown()
-	store2, err := provider.Open("ledger2")
+	store2, err := provider.Open("ledger2", ledger.Blockchain)
 	require.NoError(t, err)
 	defer store2.Shutdown()
 
@@ -235,7 +236,7 @@ func TestDrop(t *testing.T) {
 	require.NoError(t, provider.Drop("ledger1"))
 
 	// verify "ledger1" store can be opened again after remove, but it is an empty store
-	newstore1, err := provider.Open("ledger1")
+	newstore1, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 	bcInfo, err := newstore1.GetBlockchainInfo()
 	require.NoError(t, err)

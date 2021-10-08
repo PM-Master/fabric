@@ -9,13 +9,14 @@ package blockledger
 import (
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	ab "github.com/hyperledger/fabric-protos-go/orderer"
+	"github.com/hyperledger/fabric/common/ledger"
 )
 
 // Factory retrieves or creates new ledgers by channelID
 type Factory interface {
 	// GetOrCreate gets an existing ledger (if it exists)
 	// or creates it if it does not
-	GetOrCreate(channelID string) (ReadWriter, error)
+	GetOrCreate(channelID string, ledgerType ledger.Type) (ReadWriter, error)
 
 	// Remove removes an existing ledger
 	Remove(channelID string) error

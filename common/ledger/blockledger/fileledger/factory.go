@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package fileledger
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"path/filepath"
 	"sync"
@@ -19,7 +20,7 @@ import (
 
 //go:generate counterfeiter -o mock/block_store_provider.go --fake-name BlockStoreProvider . blockStoreProvider
 type blockStoreProvider interface {
-	Open(ledgerid string) (*blkstorage.BlockStore, error)
+	Open(ledgerid string, ledgerType ledger.Type) (*blkstorage.BlockStore, error)
 	Drop(ledgerid string) error
 	List() ([]string, error)
 	Close()
@@ -34,7 +35,7 @@ type fileLedgerFactory struct {
 
 // GetOrCreate gets an existing ledger (if it exists) or creates it
 // if it does not.
-func (f *fileLedgerFactory) GetOrCreate(channelID string) (blockledger.ReadWriter, error) {
+func (f *fileLedgerFactory) GetOrCreate(channelID string, ledgerType ledger.Type) (blockledger.ReadWriter, error) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
 
@@ -44,7 +45,7 @@ func (f *fileLedgerFactory) GetOrCreate(channelID string) (blockledger.ReadWrite
 		return ledger, nil
 	}
 	// open fresh
-	blockStore, err := f.blkstorageProvider.Open(channelID)
+	blockStore, err := f.blkstorageProvider.Open(channelID, ledgerType)
 	if err != nil {
 		return nil, err
 	}

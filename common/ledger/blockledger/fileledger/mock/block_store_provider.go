@@ -4,6 +4,7 @@ package mock
 import (
 	"sync"
 
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
 )
 
@@ -35,10 +36,11 @@ type BlockStoreProvider struct {
 		result1 []string
 		result2 error
 	}
-	OpenStub        func(string) (*blkstorage.BlockStore, error)
+	OpenStub        func(string, ledger.Type) (*blkstorage.BlockStore, error)
 	openMutex       sync.RWMutex
 	openArgsForCall []struct {
 		arg1 string
+		arg2 ledger.Type
 	}
 	openReturns struct {
 		result1 *blkstorage.BlockStore
@@ -56,9 +58,10 @@ func (fake *BlockStoreProvider) Close() {
 	fake.closeMutex.Lock()
 	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
 	}{})
+	stub := fake.CloseStub
 	fake.recordInvocation("Close", []interface{}{})
 	fake.closeMutex.Unlock()
-	if fake.CloseStub != nil {
+	if stub != nil {
 		fake.CloseStub()
 	}
 }
@@ -81,15 +84,16 @@ func (fake *BlockStoreProvider) Drop(arg1 string) error {
 	fake.dropArgsForCall = append(fake.dropArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.DropStub
+	fakeReturns := fake.dropReturns
 	fake.recordInvocation("Drop", []interface{}{arg1})
 	fake.dropMutex.Unlock()
-	if fake.DropStub != nil {
-		return fake.DropStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.dropReturns
 	return fakeReturns.result1
 }
 
@@ -140,15 +144,16 @@ func (fake *BlockStoreProvider) List() ([]string, error) {
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
 	}{})
+	stub := fake.ListStub
+	fakeReturns := fake.listReturns
 	fake.recordInvocation("List", []interface{}{})
 	fake.listMutex.Unlock()
-	if fake.ListStub != nil {
-		return fake.ListStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.listReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -190,21 +195,23 @@ func (fake *BlockStoreProvider) ListReturnsOnCall(i int, result1 []string, resul
 	}{result1, result2}
 }
 
-func (fake *BlockStoreProvider) Open(arg1 string) (*blkstorage.BlockStore, error) {
+func (fake *BlockStoreProvider) Open(arg1 string, arg2 ledger.Type) (*blkstorage.BlockStore, error) {
 	fake.openMutex.Lock()
 	ret, specificReturn := fake.openReturnsOnCall[len(fake.openArgsForCall)]
 	fake.openArgsForCall = append(fake.openArgsForCall, struct {
 		arg1 string
-	}{arg1})
-	fake.recordInvocation("Open", []interface{}{arg1})
+		arg2 ledger.Type
+	}{arg1, arg2})
+	stub := fake.OpenStub
+	fakeReturns := fake.openReturns
+	fake.recordInvocation("Open", []interface{}{arg1, arg2})
 	fake.openMutex.Unlock()
-	if fake.OpenStub != nil {
-		return fake.OpenStub(arg1)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.openReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -214,17 +221,17 @@ func (fake *BlockStoreProvider) OpenCallCount() int {
 	return len(fake.openArgsForCall)
 }
 
-func (fake *BlockStoreProvider) OpenCalls(stub func(string) (*blkstorage.BlockStore, error)) {
+func (fake *BlockStoreProvider) OpenCalls(stub func(string, ledger.Type) (*blkstorage.BlockStore, error)) {
 	fake.openMutex.Lock()
 	defer fake.openMutex.Unlock()
 	fake.OpenStub = stub
 }
 
-func (fake *BlockStoreProvider) OpenArgsForCall(i int) string {
+func (fake *BlockStoreProvider) OpenArgsForCall(i int) (string, ledger.Type) {
 	fake.openMutex.RLock()
 	defer fake.openMutex.RUnlock()
 	argsForCall := fake.openArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *BlockStoreProvider) OpenReturns(result1 *blkstorage.BlockStore, result2 error) {

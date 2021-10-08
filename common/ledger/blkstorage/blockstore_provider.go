@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"os"
 
 	"github.com/hyperledger/fabric/common/flogging"
@@ -40,6 +41,15 @@ type SnapshotInfo struct {
 	LastBlockNum      uint64
 	LastBlockHash     []byte
 	PreviousBlockHash []byte
+}
+
+type BlockstoreProvider interface {
+	Open(ledgerid string) (*BlockStore, error)
+	ImportFromSnapshot(ledgerID string, snapshotDir string, snapshotInfo *SnapshotInfo) error
+	Exists(ledgerid string) (bool, error)
+	Drop(ledgerid string) error
+	List() ([]string, error)
+	Close()
 }
 
 // Contains returns true iff the supplied parameter is present in the IndexConfig.AttrsToIndex
@@ -91,9 +101,10 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 // Open opens a block store for given ledgerid.
 // If a blockstore is not existing, this method creates one
 // This method should be invoked only once for a particular ledgerid
-func (p *BlockStoreProvider) Open(ledgerid string) (*BlockStore, error) {
+// implements blockStoreProvider interface in factory.go
+func (p *BlockStoreProvider) Open(ledgerid string, ledgerType ledger.Type) (*BlockStore, error) {
 	indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
-	return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats)
+	return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats, ledgerType)
 }
 
 // ImportFromSnapshot initializes blockstore from a previously generated snapshot

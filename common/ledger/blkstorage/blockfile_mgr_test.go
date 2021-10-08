@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -175,7 +176,7 @@ func TestTxIDExists(t *testing.T) {
 		env := newTestEnv(t, NewConf(testPath(), 0))
 		defer env.Cleanup()
 
-		blkStore, err := env.provider.Open("testLedger")
+		blkStore, err := env.provider.Open("testLedger", ledger.Blockchain)
 		require.NoError(t, err)
 		defer blkStore.Shutdown()
 
@@ -202,7 +203,7 @@ func TestTxIDExists(t *testing.T) {
 		env := newTestEnv(t, NewConf(testPath(), 0))
 		defer env.Cleanup()
 
-		blkStore, err := env.provider.Open("testLedger")
+		blkStore, err := env.provider.Open("testLedger", ledger.Blockchain)
 		require.NoError(t, err)
 		defer blkStore.Shutdown()
 
@@ -239,7 +240,7 @@ func TestBlockfileMgrGetTxById(t *testing.T) {
 func TestBlockfileMgrGetTxByIdDuplicateTxid(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkStore, err := env.provider.Open("testLedger")
+	blkStore, err := env.provider.Open("testLedger", ledger.Blockchain)
 	require.NoError(env.t, err)
 	blkFileMgr := blkStore.fileMgr
 	bg, gb := testutil.NewBlockGenerator(t, "testLedger", false)

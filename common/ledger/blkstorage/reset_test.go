@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"path"
@@ -26,7 +27,7 @@ func TestResetToGenesisBlkSingleBlkFile(t *testing.T) {
 	env := newTestEnv(t, NewConf(blockStoreRootDir, 0))
 	defer env.Cleanup()
 	provider := env.provider
-	store, err := provider.Open("ledger1")
+	store, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 
 	// Add 50 blocks and shutdown blockstore store
@@ -59,7 +60,7 @@ func TestResetToGenesisBlkMultipleBlkFiles(t *testing.T) {
 	env := newTestEnv(t, NewConf(blockStoreRootDir, 0))
 	defer env.Cleanup()
 	provider := env.provider
-	store, err := provider.Open("ledger1")
+	store, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 	for i, b := range blocks {
 		require.NoError(t, store.AddBlock(b))
@@ -89,9 +90,9 @@ func TestResetBlockStore(t *testing.T) {
 	env := newTestEnv(t, NewConf(blockStoreRootDir, maxFileSie))
 	defer env.Cleanup()
 	provider := env.provider
-	store1, err := provider.Open("ledger1")
+	store1, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
-	store2, _ := provider.Open("ledger2")
+	store2, _ := provider.Open("ledger2", ledger.Blockchain)
 
 	for _, b := range blocks1 {
 		store1.AddBlock(b)
@@ -120,8 +121,8 @@ func TestResetBlockStore(t *testing.T) {
 
 	env = newTestEnv(t, NewConf(blockStoreRootDir, maxFileSie))
 	provider = env.provider
-	store1, _ = provider.Open("ledger1")
-	store2, _ = provider.Open("ledger2")
+	store1, _ = provider.Open("ledger1", ledger.Blockchain)
+	store2, _ = provider.Open("ledger2", ledger.Blockchain)
 	assertBlockStorePostReset(t, store1, blocks1)
 	assertBlockStorePostReset(t, store2, blocks2)
 
@@ -162,7 +163,7 @@ func TestRecordHeight(t *testing.T) {
 	env := newTestEnv(t, NewConf(blockStoreRootDir, 0))
 	defer env.Cleanup()
 	provider := env.provider
-	store, err := provider.Open("ledger1")
+	store, err := provider.Open("ledger1", ledger.Blockchain)
 	require.NoError(t, err)
 
 	blocks := testutil.ConstructTestBlocks(t, 60)

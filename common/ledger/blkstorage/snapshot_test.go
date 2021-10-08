@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -49,7 +50,7 @@ func TestImportFromSnapshot(t *testing.T) {
 
 		bg, genesisBlock := testutil.NewBlockGenerator(t, "testLedger", false)
 		blocksGenerator = bg
-		originalBlockStore, err := env.provider.Open("originalLedger")
+		originalBlockStore, err := env.provider.Open("originalLedger", ledger.Blockchain)
 		require.NoError(t, err)
 		txIDGenesisTx, err := protoutil.GetOrComputeTxIDFromEnvelope(genesisBlock.Data.Data[0])
 		require.NoError(t, err)
@@ -121,7 +122,7 @@ func TestImportFromSnapshot(t *testing.T) {
 
 		err = env.provider.ImportFromSnapshot(bootstrappedLedgerName, snapshotDir, snapshotInfo)
 		require.NoError(t, err)
-		bootstrappedBlockStore, err = env.provider.Open(bootstrappedLedgerName)
+		bootstrappedBlockStore, err = env.provider.Open(bootstrappedLedgerName, ledger.Blockchain)
 		require.NoError(t, err)
 	}
 
@@ -135,7 +136,7 @@ func TestImportFromSnapshot(t *testing.T) {
 
 	reopenBlockStore := func() error {
 		env = newTestEnv(t, env.provider.conf)
-		s, err := env.provider.Open(bootstrappedLedgerName)
+		s, err := env.provider.Open(bootstrappedLedgerName, ledger.Blockchain)
 		bootstrappedBlockStore = s
 		return err
 	}
@@ -426,7 +427,7 @@ func TestBootstrapFromSnapshotErrorPaths(t *testing.T) {
 		env.provider.Close()
 		env = newTestEnv(t, NewConf(testPath, 0))
 		require.NoError(t, ioutil.WriteFile(bootstrappingSnapshotInfoFile, []byte("junk-data"), 0644))
-		_, err = env.provider.Open(ledgerID)
+		_, err = env.provider.Open(ledgerID, ledger.Blockchain)
 		require.Contains(t, err.Error(), "error while unmarshalling bootstrappingSnapshotInfo")
 	})
 

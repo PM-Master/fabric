@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func TestStatsBlockchainHeight(t *testing.T) {
 
 	provider := env.provider
 	ledgerid := "ledger-stats"
-	store, err := provider.Open(ledgerid)
+	store, err := provider.Open(ledgerid, ledger.Blockchain)
 	require.NoError(t, err)
 	defer store.Shutdown()
 
@@ -56,7 +57,7 @@ func TestStatsBlockchainHeight(t *testing.T) {
 
 	// shutdown and reopen the store to verify blockchain height
 	store.Shutdown()
-	store, err = provider.Open(ledgerid)
+	store, err = provider.Open(ledgerid, ledger.Blockchain)
 	require.NoError(t, err)
 
 	// verify the call when opening an existing ledger - should set height correctly
@@ -76,7 +77,7 @@ func TestStatsBlockCommit(t *testing.T) {
 
 	provider := env.provider
 	ledgerid := "ledger-stats"
-	store, err := provider.Open(ledgerid)
+	store, err := provider.Open(ledgerid, ledger.Blockchain)
 	require.NoError(t, err)
 	defer store.Shutdown()
 

@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"math"
 	"os"
@@ -79,7 +80,7 @@ type testBlockfileMgrWrapper struct {
 }
 
 func newTestBlockfileWrapper(env *testEnv, ledgerid string) *testBlockfileMgrWrapper {
-	blkStore, err := env.provider.Open(ledgerid)
+	blkStore, err := env.provider.Open(ledgerid, ledger.Blockchain)
 	require.NoError(env.t, err)
 	return &testBlockfileMgrWrapper{env.t, blkStore.fileMgr}
 }

@@ -15,6 +15,7 @@ import (
 // blocksItr - an iterator for iterating over a sequence of blocks
 type blocksItr struct {
 	mgr                  *blockfileMgr
+	blockmatrixItr       *blockmatrixItr
 	maxBlockNumAvailable uint64
 	blockNumToRetrieve   uint64
 	stream               *blockStream
@@ -25,19 +26,46 @@ type blocksItr struct {
 func newBlockItr(mgr *blockfileMgr, startBlockNum uint64) *blocksItr {
 	mgr.blkfilesInfoCond.L.Lock()
 	defer mgr.blkfilesInfoCond.L.Unlock()
-	return &blocksItr{mgr, mgr.blockfilesInfo.lastPersistedBlock, startBlockNum, nil, false, &sync.Mutex{}}
+
+	var (
+		blockmatrixItr *blockmatrixItr
+		blockfilesInfo *blockfilesInfo
+	)
+
+	if mgr.isBlockmatrix() {
+		blockmatrixItr = newBlockmatrixItr(mgr.blockmatrixMgr, startBlockNum)
+		blockfilesInfo = mgr.blockmatrixMgr.blkFilesInfo
+	} else {
+		blockfilesInfo = mgr.blockfilesInfo
+	}
+
+	return &blocksItr{mgr, blockmatrixItr, blockfilesInfo.lastPersistedBlock, startBlockNum, nil, false, &sync.Mutex{}}
 }
 
 func (itr *blocksItr) waitForBlock(blockNum uint64) uint64 {
 	itr.mgr.blkfilesInfoCond.L.Lock()
 	defer itr.mgr.blkfilesInfoCond.L.Unlock()
-	for itr.mgr.blockfilesInfo.lastPersistedBlock < blockNum && !itr.shouldClose() {
-		logger.Debugf("Going to wait for newer blocks. maxAvailaBlockNumber=[%d], waitForBlockNum=[%d]",
-			itr.mgr.blockfilesInfo.lastPersistedBlock, blockNum)
-		itr.mgr.blkfilesInfoCond.Wait()
-		logger.Debugf("Came out of wait. maxAvailaBlockNumber=[%d]", itr.mgr.blockfilesInfo.lastPersistedBlock)
+
+	blockfilesInfo := &blockfilesInfo{}
+	if itr.mgr.isBlockmatrix() {
+		blockfilesInfo = itr.mgr.blockmatrixMgr.blkFilesInfo
+	} else {
+		blockfilesInfo = itr.mgr.blockfilesInfo
 	}
-	return itr.mgr.blockfilesInfo.lastPersistedBlock
+
+	for blockfilesInfo.lastPersistedBlock < blockNum && !itr.shouldClose() {
+		logger.Debugf("Going to wait for newer blocks. maxAvailaBlockNumber=[%d], waitForBlockNum=[%d]",
+			blockfilesInfo.lastPersistedBlock, blockNum)
+
+		if itr.mgr.isBlockmatrix() {
+			itr.mgr.blockmatrixMgr.blkfilesInfoCond.Wait()
+		} else {
+			itr.mgr.blkfilesInfoCond.Wait()
+		}
+
+		logger.Debugf("Came out of wait. maxAvailaBlockNumber=[%d]", blockfilesInfo.lastPersistedBlock)
+	}
+	return blockfilesInfo.lastPersistedBlock
 }
 
 func (itr *blocksItr) initStream() error {
@@ -60,6 +88,10 @@ func (itr *blocksItr) shouldClose() bool {
 
 // Next moves the cursor to next block and returns true iff the iterator is not exhausted
 func (itr *blocksItr) Next() (ledger.QueryResult, error) {
+	if itr.mgr.isBlockmatrix() {
+		return itr.mgr.blockmatrixMgr.Next()
+	}
+
 	if itr.maxBlockNumAvailable < itr.blockNumToRetrieve {
 		itr.maxBlockNumAvailable = itr.waitForBlock(itr.blockNumToRetrieve)
 	}

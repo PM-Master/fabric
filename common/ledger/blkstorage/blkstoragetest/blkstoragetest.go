@@ -8,6 +8,7 @@ package blkstoragetest
 
 import (
 	"crypto/sha256"
+	"github.com/hyperledger/fabric/common/ledger"
 	"hash"
 	"io/ioutil"
 	"os"
@@ -52,7 +53,7 @@ func BootstrapBlockstoreFromSnapshot(t *testing.T, ledgerName string, blocks []*
 	require.NoError(t, err)
 
 	// create an original store from the provided blocks so that we can create a snapshot
-	originalBlkStore, err := provider.Open(ledgerName + "original")
+	originalBlkStore, err := provider.Open(ledgerName+"original", ledger.Blockchain)
 	require.NoError(t, err)
 
 	for _, block := range blocks {
@@ -71,7 +72,7 @@ func BootstrapBlockstoreFromSnapshot(t *testing.T, ledgerName string, blocks []*
 
 	err = provider.ImportFromSnapshot(ledgerName, snapshotDir, snapshotInfo)
 	require.NoError(t, err)
-	blockStore, err := provider.Open(ledgerName)
+	blockStore, err := provider.Open(ledgerName, ledger.Blockchain)
 	require.NoError(t, err)
 
 	cleanup := func() {
