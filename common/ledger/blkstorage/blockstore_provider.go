@@ -64,38 +64,22 @@ func (c *IndexConfig) Contains(indexableAttr IndexableAttr) bool {
 
 // BlockStoreProvider provides handle to block storage - this is not thread-safe
 type BlockStoreProvider struct {
-	conf            *Conf
-	indexConfig     *IndexConfig
-	leveldbProvider *leveldbhelper.Provider
-	stats           *stats
+	conf              *Conf
+	indexConfig       *IndexConfig
+	leveldbProvider   *leveldbhelper.Provider
+	stats             *stats
+	ledgerDBProviders map[string]*leveldbhelper.Provider
 }
 
 // NewProvider constructs a filesystem based block store provider
 func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.Provider) (*BlockStoreProvider, error) {
-	dbConf := &leveldbhelper.Conf{
-		DBPath:         conf.getIndexDir(),
-		ExpectedFormat: dataFormatVersion(indexConfig),
-	}
-
-	p, err := leveldbhelper.NewProvider(dbConf)
-	if err != nil {
-		return nil, err
-	}
-
-	dirPath := conf.getChainsDir()
-	if _, err := os.Stat(dirPath); err != nil {
-		if !os.IsNotExist(err) { // NotExist is the only permitted error type
-			return nil, errors.Wrapf(err, "failed to read ledger directory %s", dirPath)
-		}
-
-		logger.Info("Creating new file ledger directory at", dirPath)
-		if err = os.MkdirAll(dirPath, 0755); err != nil {
-			return nil, errors.Wrapf(err, "failed to create ledger directory: %s", dirPath)
-		}
-	}
-
 	stats := newStats(metricsProvider)
-	return &BlockStoreProvider{conf, indexConfig, p, stats}, nil
+	return &BlockStoreProvider{
+		conf:              conf,
+		indexConfig:       indexConfig,
+		stats:             stats,
+		ledgerDBProviders: make(map[string]*leveldbhelper.Provider),
+	}, nil
 }
 
 // Open opens a block store for given ledgerid.
@@ -103,8 +87,50 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 // This method should be invoked only once for a particular ledgerid
 // implements blockStoreProvider interface in factory.go
 func (p *BlockStoreProvider) Open(ledgerid string, ledgerType ledger.Type) (*BlockStore, error) {
-	indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
-	return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats, ledgerType)
+	if ledgerType.IsBlockmatrix() {
+		dbConf := &leveldbhelper.Conf{
+			DBPath:         p.conf.getLedgerBlockDir(ledgerid),
+			ExpectedFormat: dataFormatVersion(p.indexConfig),
+		}
+
+		leveldbProvider, err := leveldbhelper.NewProvider(dbConf)
+		if err != nil {
+			return nil, err
+		}
+
+		p.ledgerDBProviders[ledgerid] = leveldbProvider
+
+		return newBlockmatrixStore(ledgerid, p.conf, p.stats, p.indexConfig, leveldbProvider)
+	} else {
+		if p.leveldbProvider == nil {
+			dbConf := &leveldbhelper.Conf{
+				DBPath:         p.conf.getIndexDir(),
+				ExpectedFormat: dataFormatVersion(p.indexConfig),
+			}
+
+			prov, err := leveldbhelper.NewProvider(dbConf)
+			if err != nil {
+				return nil, err
+			}
+
+			dirPath := p.conf.getChainsDir()
+			if _, err := os.Stat(dirPath); err != nil {
+				if !os.IsNotExist(err) { // NotExist is the only permitted error type
+					return nil, errors.Wrapf(err, "failed to read ledger directory %s", dirPath)
+				}
+
+				logger.Info("Creating new file ledger directory at", dirPath)
+				if err = os.MkdirAll(dirPath, 0755); err != nil {
+					return nil, errors.Wrapf(err, "failed to create ledger directory: %s", dirPath)
+				}
+			}
+
+			p.leveldbProvider = prov
+		}
+
+		indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
+		return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats)
+	}
 }
 
 // ImportFromSnapshot initializes blockstore from a previously generated snapshot
@@ -158,7 +184,13 @@ func (p *BlockStoreProvider) List() ([]string, error) {
 
 // Close closes the BlockStoreProvider
 func (p *BlockStoreProvider) Close() {
-	p.leveldbProvider.Close()
+	if p.leveldbProvider != nil {
+		p.leveldbProvider.Close()
+	}
+
+	for _, prov := range p.ledgerDBProviders {
+		prov.Close()
+	}
 }
 
 func dataFormatVersion(indexConfig *IndexConfig) string {

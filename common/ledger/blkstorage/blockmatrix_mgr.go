@@ -7,8 +7,6 @@ import (
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/ledger"
-	"github.com/hyperledger/fabric/common/ledger/dataformat"
-	"github.com/hyperledger/fabric/common/ledger/util"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
 	"github.com/hyperledger/fabric/internal/fileutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
@@ -37,24 +35,28 @@ type (
 		blkfilesInfoCond          *sync.Cond
 		blockmatrixInfo           atomic.Value
 		// need blockchain info for methods that require blockchain height but are interface methods used elsewhere
-		bcInfo atomic.Value
+		bcInfo        atomic.Value
+		blockProvider *leveldbhelper.Provider
+		indexConfig   *IndexConfig
 	}
 )
 
-func newBlockmatrixMgr(ledgerID string, conf *Conf) (*blockmatrixMgr, error) {
+func newBlockmatrixMgr(ledgerID string, conf *Conf, indexConfig *IndexConfig, provider *leveldbhelper.Provider) (*blockmatrixMgr, error) {
 	mtxDir := conf.getLedgerBlockDir(ledgerID)
 	_, err := fileutil.CreateDirIfMissing(mtxDir)
 	if err != nil {
 		panic(fmt.Sprintf("Error creating block storage root dir [%s]: %s", mtxDir, err))
 	}
+
 	mgr := &blockmatrixMgr{
 		rootDir:          mtxDir,
 		conf:             conf,
 		blkfilesInfoCond: sync.NewCond(&sync.Mutex{}),
+		indexConfig:      indexConfig,
 	}
 
 	// initialize block matrix database
-	err = mgr.initDB(ledgerID, conf)
+	err = mgr.initDB(ledgerID, provider)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing blockmatrix database: %w", err)
 	}
@@ -68,19 +70,9 @@ func newBlockmatrixMgr(ledgerID string, conf *Conf) (*blockmatrixMgr, error) {
 	return mgr, nil
 }
 
-func (mgr *blockmatrixMgr) initDB(ledgerID string, conf *Conf) error {
-	mgr.blockConf = &leveldbhelper.Conf{
-		DBPath:         conf.getLedgerBlockDir(ledgerID),
-		ExpectedFormat: dataformat.CurrentFormat,
-	}
-
-	p, err := leveldbhelper.NewProvider(mgr.blockConf)
-	if err != nil {
-		return err
-	}
-	db := p.GetDBHandle(ledgerID)
-
-	mgr.blockDB = db
+func (mgr *blockmatrixMgr) initDB(ledgerID string, p *leveldbhelper.Provider) error {
+	mgr.blockProvider = p
+	mgr.blockDB = p.GetDBHandle(ledgerID)
 
 	return nil
 }
@@ -120,6 +112,22 @@ func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error
 	mgr.bcInfo.Store(&common.BlockchainInfo{Height: info.BlockCount})
 
 	return err
+}
+
+func (mgr *blockmatrixMgr) getLastBlockIndexed() (uint64, error) {
+	var blockNumBytes []byte
+	var err error
+	if blockNumBytes, err = mgr.blockDB.Get(indexSavePointKey); err != nil {
+		return 0, err
+	}
+	if blockNumBytes == nil {
+		return 0, errIndexSavePointKeyNotPresent
+	}
+	return decodeBlockNum(blockNumBytes), nil
+}
+
+func (mgr *blockmatrixMgr) isAttributeIndexed(attribute IndexableAttr) bool {
+	return mgr.indexConfig.Contains(attribute)
 }
 
 func (mgr *blockmatrixMgr) saveBlockMatrixInfo(info *BlockmatrixInfo, saveInDB bool) error {
@@ -167,6 +175,14 @@ func (mgr *blockmatrixMgr) addBlock(block *common.Block) (err error) {
 	}
 
 	defer fileLock.Unlock()*/
+
+	bcInfo := mgr.getBlockchainInfo()
+	if block.Header.Number != bcInfo.Height {
+		return errors.Errorf(
+			"block number should have been %d but was %d",
+			mgr.getBlockchainInfo().Height, block.Header.Number,
+		)
+	}
 
 	blockmatrixInfo := mgr.getBlockmatrixInfo()
 
@@ -231,19 +247,27 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *Blockmatr
 	batch.Put(constructBlockNumKey(block.Header.Number), blockBytes)
 
 	// blockHash -> block num
-	blockHash := protoutil.BlockHeaderHash(block.Header)
-	fmt.Println("putting ", block.Header.Number, constructBlockHashKey(blockHash))
-	batch.Put(constructBlockHashKey(blockHash), encodeBlockNum(block.Header.Number))
+	if mgr.isAttributeIndexed(IndexableAttrBlockHash) {
+		blockHash := protoutil.BlockHeaderHash(block.Header)
+		batch.Put(constructBlockHashKey(blockHash), encodeBlockNum(block.Header.Number))
+	}
 
 	// for each tx do txid -> blockNum
-	txsfltr := txflags.ValidationFlags(block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER])
-	for i, tx := range txs.txOffsets {
-		txIndex := &txIndex{blockNum: block.Header.Number, validationCode: int32(txsfltr.Flag(i))}
-		txIndexBytes, err := txIndex.marshal()
-		if err != nil {
-			return err
+	if mgr.isAttributeIndexed(IndexableAttrTxID) {
+		txsfltr := txflags.ValidationFlags(block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER])
+		for i, tx := range txs.txOffsets {
+			txIndex := &txIndex{blockNum: block.Header.Number, index: i, validationCode: int32(txsfltr.Flag(i))}
+			txIndexBytes, err := txIndex.marshal()
+			if err != nil {
+				return err
+			}
+			batch.Put(constructTxIDKey(tx.txID, block.Header.Number, uint64(i)), txIndexBytes)
+
+			// put blocknum trans num to tx index
+			if mgr.isAttributeIndexed(IndexableAttrBlockNumTranNum) {
+				batch.Put(constructBlockNumTranNumKey(block.Header.Number, uint64(i)), txIndexBytes)
+			}
 		}
-		batch.Put(constructMatrixTxIDKey(tx.txID), txIndexBytes)
 	}
 
 	// update hashes in info
@@ -252,12 +276,12 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *Blockmatr
 	return mgr.updateRowColumnHashes(row, col, info, block.Header.Number, hash)
 }
 
-func constructMatrixTxIDKey(txID string) []byte {
+/*func constructMatrixTxIDKey(txID string) []byte {
 	return append(
 		[]byte{txIDIdxKeyPrefix},
 		util.EncodeOrderPreservingVarUint64(uint64(len(txID)))...,
 	)
-}
+}*/
 
 func (mgr *blockmatrixMgr) updateRowColumnHashes(row uint64, col uint64, info *BlockmatrixInfo, blockNum uint64, dataHash []byte) error {
 	var err error
@@ -350,15 +374,31 @@ func (mgr *blockmatrixMgr) retrieveBlockByNumber(blockNum uint64) (*common.Block
 }
 
 func (mgr *blockmatrixMgr) retrieveBlockByTxID(txID string) (*common.Block, error) {
-	txIndexBytes, err := mgr.blockDB.Get(constructMatrixTxIDKey(txID))
+	if !mgr.isAttributeIndexed(IndexableAttrTxID) {
+		return nil, fmt.Errorf("TxID is not indexed")
+	}
+
+	rangeScan := constructTxIDRangeScan(txID)
+	itr, err := mgr.blockDB.GetIterator(rangeScan.startKey, rangeScan.stopKey)
 	if err != nil {
-		return nil, err
-	} else if txIndexBytes == nil {
-		return nil, nil
+		return nil, errors.WithMessagef(err, "error while trying to retrieve transaction info by TXID [%s]", txID)
+	}
+	defer itr.Release()
+
+	present := itr.Next()
+	if err := itr.Error(); err != nil {
+		return nil, errors.Wrapf(err, "error while trying to retrieve transaction info by TXID [%s]", txID)
+	}
+	if !present {
+		return nil, errors.Errorf("no such transaction ID [%s] in index", txID)
+	}
+	valBytes := itr.Value()
+	if len(valBytes) == 0 {
+		return nil, errNilValue
 	}
 
 	txIndex := &txIndex{}
-	if err = txIndex.unmarshal(txIndexBytes); err != nil {
+	if err = txIndex.unmarshal(valBytes); err != nil {
 		return nil, err
 	}
 
@@ -366,9 +406,11 @@ func (mgr *blockmatrixMgr) retrieveBlockByTxID(txID string) (*common.Block, erro
 }
 
 func (mgr *blockmatrixMgr) retrieveBlockByHash(blockHash []byte) (*common.Block, error) {
+	if !mgr.isAttributeIndexed(IndexableAttrBlockHash) {
+		return nil, fmt.Errorf("TxID is not indexed")
+	}
+
 	logger.Debugf("DBM - retrieveBlockByHash() - blockHash = [%#v]", blockHash)
-	fmt.Println("blockHash", blockHash)
-	fmt.Println("getting ", constructBlockHashKey(blockHash))
 	blockNumBytes, err := mgr.blockDB.Get(constructBlockHashKey(blockHash))
 	if err != nil {
 		return nil, err
@@ -385,19 +427,41 @@ func (mgr *blockmatrixMgr) retrieveBlockByHash(blockHash []byte) (*common.Block,
 }
 
 func (mgr *blockmatrixMgr) retrieveTxValidationCodeByTxID(txID string) (peer.TxValidationCode, error) {
-	txIndexBytes, err := mgr.blockDB.Get(constructMatrixTxIDKey(txID))
+	v, err := mgr.getTxIDIndex(txID)
 	if err != nil {
 		return peer.TxValidationCode(-1), err
-	} else if txIndexBytes == nil {
-		return peer.TxValidationCode(-1), nil
+	}
+	return peer.TxValidationCode(v.validationCode), nil
+}
+
+func (mgr *blockmatrixMgr) getTxIDIndex(txID string) (*txIndex, error) {
+	if !mgr.isAttributeIndexed(IndexableAttrTxID) {
+		return nil, fmt.Errorf("TxID is not indexed")
 	}
 
-	txIndex := &txIndex{}
-	if err = txIndex.unmarshal(txIndexBytes); err != nil {
-		return peer.TxValidationCode(-1), err
+	rangeScan := constructTxIDRangeScan(txID)
+	itr, err := mgr.blockDB.GetIterator(rangeScan.startKey, rangeScan.stopKey)
+	if err != nil {
+		return nil, errors.WithMessagef(err, "error while trying to retrieve transaction info by TXID [%s]", txID)
 	}
+	defer itr.Release()
 
-	return peer.TxValidationCode(txIndex.validationCode), nil
+	present := itr.Next()
+	if err := itr.Error(); err != nil {
+		return nil, errors.Wrapf(err, "error while trying to retrieve transaction info by TXID [%s]", txID)
+	}
+	if !present {
+		return nil, errors.Errorf("no such transaction ID [%s] in index", txID)
+	}
+	valBytes := itr.Value()
+	if len(valBytes) == 0 {
+		return nil, errNilValue
+	}
+	val := &txIndex{}
+	if err := val.unmarshal(valBytes); err != nil {
+		return nil, errors.Wrapf(err, "unexpected error while unmarshaling bytes [%#v] into TxIDIndexValProto", valBytes)
+	}
+	return val, nil
 }
 
 func (mgr *blockmatrixMgr) retrieveBlockHeaderByNumber(blockNum uint64) (*common.BlockHeader, error) {
@@ -416,21 +480,53 @@ func (mgr *blockmatrixMgr) retrieveBlockHeaderByNumber(blockNum uint64) (*common
 }
 
 func (mgr *blockmatrixMgr) txIDExists(txID string) (bool, error) {
-	txIndexBytes, err := mgr.blockDB.Get(constructMatrixTxIDKey(txID))
-	return txIndexBytes != nil, err
+	if !mgr.isAttributeIndexed(IndexableAttrTxID) {
+		return false, fmt.Errorf("TxID is not indexed")
+	}
+
+	rangeScan := constructTxIDRangeScan(txID)
+	itr, err := mgr.blockDB.GetIterator(rangeScan.startKey, rangeScan.stopKey)
+	if err != nil {
+		return false, errors.WithMessagef(err, "error while trying to check the presence of TXID [%s]", txID)
+	}
+	defer itr.Release()
+
+	present := itr.Next()
+	if err := itr.Error(); err != nil {
+		return false, errors.Wrapf(err, "error while trying to check the presence of TXID [%s]", txID)
+	}
+	return present, nil
 }
 
 func (mgr *blockmatrixMgr) retrieveTransactionByID(txID string) (*common.Envelope, error) {
-	txIndexBytes, err := mgr.blockDB.Get(constructMatrixTxIDKey(txID))
+	logger.Debugf("retrieveTransactionByID() - txId = [%s]", txID)
+	txIndex, err := mgr.getTxIDIndex(txID)
 	if err != nil {
 		return nil, err
-	} else if txIndexBytes == nil {
-		return nil, nil
+	}
+
+	block, err := mgr.retrieveBlockByNumber(txIndex.blockNum)
+	if err != nil {
+		return nil, err
+	}
+
+	txBytes := block.Data.Data[txIndex.index]
+	return protoutil.GetEnvelopeFromBlock(txBytes)
+}
+
+func (mgr *blockmatrixMgr) retrieveTransactionByBlockNumTranNum(blockNum uint64, tranNum uint64) (*common.Envelope, error) {
+	if !mgr.isAttributeIndexed(IndexableAttrBlockNumTranNum) {
+		return nil, errors.New("<blockNumber, transactionNumber> tuple not maintained in index")
+	}
+
+	bytes, err := mgr.blockDB.Get(constructBlockNumTranNumKey(blockNum, tranNum))
+	if err != nil {
+		return nil, err
 	}
 
 	txIndex := &txIndex{}
-	if err = txIndex.unmarshal(txIndexBytes); err != nil {
-		return nil, err
+	if err := txIndex.unmarshal(bytes); err != nil {
+		return nil, errors.Wrapf(err, "unexpected error while unmarshaling bytes [%#v] into TxIDIndexValProto", bytes)
 	}
 
 	block, err := mgr.retrieveBlockByNumber(txIndex.blockNum)
@@ -679,6 +775,21 @@ func (mgr *blockmatrixMgr) IsValid() (bool, error) {
 func formatBlockNumKey(number uint64) []byte {
 	return []byte(fmt.Sprintf("%s%d", string(numPrefix), number))
 }*/
+func (mgr *blockmatrixMgr) fetchBlock(blockNum uint64) (*common.Block, bool, error) {
+	blockBytes, err := mgr.blockDB.Get(encodeBlockNum(blockNum))
+	if err != nil {
+		return nil, false, err
+	} else if blockBytes == nil {
+		logger.Debug("DBM fetchBlock blockBytes is nil for ", blockNum)
+		return nil, false, nil
+	}
+
+	block, err := deserializeBlock(blockBytes)
+	if err != nil {
+		return nil, true, err
+	}
+	return block, true, nil
+}
 
 func serializeInfo(info *BlockmatrixInfo) ([]byte, error) {
 	buf := proto.NewBuffer(nil)
@@ -753,31 +864,48 @@ func deserializeInfo(bytes []byte) (*BlockmatrixInfo, error) {
 	return info, nil
 }
 
-func (mgr *blockmatrixMgr) fetchBlock(blockNum uint64) (*common.Block, bool, error) {
-	blockBytes, err := mgr.blockDB.Get(encodeBlockNum(blockNum))
-	if err != nil {
-		return nil, false, err
-	} else if blockBytes == nil {
-		logger.Debug("DBM fetchBlock blockBytes is nil for ", blockNum)
-		return nil, false, nil
-	}
-
-	block, err := deserializeBlock(blockBytes)
-	if err != nil {
-		return nil, true, err
-	}
-	return block, true, nil
+func (mgr *blockmatrixMgr) close() {
+	mgr.blockDB.Close()
+	mgr.blockProvider.Close()
 }
 
 type blockmatrixItr struct {
+	mgr                  *blockmatrixMgr
+	maxBlockNumAvailable uint64
+	blockNumToRetrieve   uint64
+	closeMarker          bool
+	closeMarkerLock      *sync.Mutex
 }
 
 func newBlockmatrixItr(mgr *blockmatrixMgr, startNum uint64) *blockmatrixItr {
-
+	return &blockmatrixItr{
+		mgr,
+		mgr.blkFilesInfo.lastPersistedBlock,
+		startNum,
+		false,
+		&sync.Mutex{},
+	}
 }
 
-func (itr *blockmatrixMgr) Next() (ledger.QueryResult, error) {
+func (b *blockmatrixItr) Next() (ledger.QueryResult, error) {
+	fmt.Println("getting in blockmatrix mgr", b.blockNumToRetrieve)
+	block, err := b.mgr.retrieveBlockByNumber(b.blockNumToRetrieve)
+	if err != nil {
+		return nil, err
+	}
 
+	b.blockNumToRetrieve++
+
+	return block, nil
+}
+
+func (b *blockmatrixItr) Close() {
+	b.mgr.blkfilesInfoCond.L.Lock()
+	defer b.mgr.blkfilesInfoCond.L.Unlock()
+	b.closeMarkerLock.Lock()
+	defer b.closeMarkerLock.Unlock()
+	b.closeMarker = true
+	b.mgr.blkfilesInfoCond.Broadcast()
 }
 
 type txIndex struct {

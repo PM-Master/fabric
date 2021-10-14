@@ -25,8 +25,23 @@ type BlockStore struct {
 }
 
 // newBlockStore constructs a `BlockStore`
-func newBlockStore(id string, conf *Conf, indexConfig *IndexConfig, dbHandle *leveldbhelper.DBHandle, stats *stats, ledgerType ledger.Type) (*BlockStore, error) {
-	fileMgr, err := newBlockfileMgr(id, conf, indexConfig, dbHandle, ledgerType)
+func newBlockStore(id string, conf *Conf, indexConfig *IndexConfig, dbHandle *leveldbhelper.DBHandle, stats *stats) (*BlockStore, error) {
+	fileMgr, err := newBlockfileMgr(id, conf, indexConfig, dbHandle)
+	if err != nil {
+		return nil, err
+	}
+
+	// create ledgerStats and initialize blockchain_height stat
+	ledgerStats := stats.ledgerStats(id)
+	info := fileMgr.getBlockchainInfo()
+	ledgerStats.updateBlockchainHeight(info.Height)
+
+	return &BlockStore{id, conf, fileMgr, ledgerStats}, nil
+}
+
+// newBlockStore constructs a `BlockStore`
+func newBlockmatrixStore(id string, conf *Conf, stats *stats, indexConfig *IndexConfig, provider *leveldbhelper.Provider) (*BlockStore, error) {
+	fileMgr, err := newBlockmatrixBlockfileMgr(id, conf, indexConfig, provider)
 	if err != nil {
 		return nil, err
 	}

@@ -126,6 +126,7 @@ func (index *blockIndex) indexBlock(blockIdxInfo *blockIdxInfo) error {
 			if err != nil {
 				return errors.Wrap(err, "unexpected error while marshaling TxIDIndexValProto message")
 			}
+			fmt.Println(">>", txoffset.txID, indexValBytes)
 			batch.Put(
 				constructTxIDKey(txoffset.txID, blkNum, uint64(i)),
 				indexValBytes,
