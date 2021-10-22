@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package tests
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"testing"
 
 	"github.com/hyperledger/fabric/core/ledger/kvledger"
@@ -54,7 +55,7 @@ func TestResetRollbackRebuildFailsIfAnyLedgerBootstrappedFromSnapshot(t *testing
 
 	t.Run("manually_dropping_dbs_returns_error_on_start", func(t *testing.T) {
 		env2.closeAllLedgersAndRemoveDirContents(rebuildableStatedb)
-		_, err := env2.ledgerMgr.OpenLedger("ledger-1")
+		_, err := env2.ledgerMgr.OpenLedger("ledger-1", ledger.Blockmatrix)
 		require.EqualError(t, err, "recovery for DB [state] not possible. Ledger [ledger-1] is created from a snapshot. Last block in snapshot = [8], DB needs block [0] onward")
 	})
 }

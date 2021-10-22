@@ -8,6 +8,7 @@ package kvledger
 
 import (
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -93,7 +94,7 @@ func testLedgerProvider(t *testing.T, enableHistoryDB bool) {
 		ledgerid := constructTestLedgerID(i)
 		status, _ := provider.Exists(ledgerid)
 		require.True(t, status)
-		ledger, err := provider.Open(ledgerid)
+		ledger, err := provider.Open(ledgerid, cl.Blockmatrix)
 		require.NoError(t, err)
 		bcInfo, err := ledger.GetBlockchainInfo()
 		ledger.Close()
@@ -116,7 +117,7 @@ func testLedgerProvider(t *testing.T, enableHistoryDB bool) {
 	require.NoError(t, err, "Failed to check for ledger existence")
 	require.Equal(t, status, false)
 
-	_, err = provider.Open(constructTestLedgerID(numLedgers))
+	_, err = provider.Open(constructTestLedgerID(numLedgers), cl.Blockmatrix)
 	require.EqualError(t, err, "cannot open ledger [ledger_000010], ledger does not exist")
 }
 
@@ -154,7 +155,7 @@ func TestLedgerMetataDataUnmarshalError(t *testing.T) {
 	_, err = provider.List()
 	require.EqualError(t, err, "error unmarshalling ledger metadata: unexpected EOF")
 
-	_, err = provider.Open(ledgerID)
+	_, err = provider.Open(ledgerID, cl.Blockmatrix)
 	require.EqualError(t, err, "error unmarshalling ledger metadata: unexpected EOF")
 }
 
@@ -401,7 +402,7 @@ func TestMultipleLedgerBasicRW(t *testing.T) {
 	defer provider2.Close()
 	ledgers = make([]lgr.PeerLedger, numLedgers)
 	for i := 0; i < numLedgers; i++ {
-		l, err := provider2.Open(constructTestLedgerID(i))
+		l, err := provider2.Open(constructTestLedgerID(i), cl.Blockmatrix)
 		require.NoError(t, err)
 		ledgers[i] = l
 	}
@@ -501,13 +502,15 @@ func TestLedgerBackup(t *testing.T) {
 	_, err = provider.CreateFromGenesisBlock(gb)
 	require.EqualError(t, err, "ledger [TestLedger] already exists with state [ACTIVE]")
 
-	ledger, err = provider.Open(ledgerid)
+	ledger, err = provider.Open(ledgerid, cl.Blockmatrix)
 	require.NoError(t, err)
 	defer ledger.Close()
 
 	block1Hash := protoutil.BlockHeaderHash(block1.Header)
 	block2Hash := protoutil.BlockHeaderHash(block2.Header)
 	bcInfo, _ := ledger.GetBlockchainInfo()
+	fmt.Println(bcInfo.CurrentBlockHash)
+	fmt.Println(block2Hash)
 	require.Equal(t, &common.BlockchainInfo{
 		Height: 3, CurrentBlockHash: block2Hash, PreviousBlockHash: block1Hash,
 	}, bcInfo)

@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package node
 
 import (
-	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"path/filepath"
 	"time"
 
@@ -54,14 +53,7 @@ func ledgerConfig() *ledger.Config {
 		snapshotsRootDir = filepath.Join(fsPath, "snapshots")
 	}
 
-	// DBM check is using blockmatrix
-	lt := commonledger.Blockchain
-	if viper.IsSet("ledger.blockmatrix") {
-		lt = commonledger.Blockmatrix
-	}
-
 	conf := &ledger.Config{
-		LedgerType: lt,
 		RootFSPath: ledgersDataRootDir,
 		StateDBConfig: &ledger.StateDBConfig{
 			StateDatabase: viper.GetString("ledger.state.stateDatabase"),

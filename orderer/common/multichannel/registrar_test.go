@@ -9,6 +9,7 @@ package multichannel
 import (
 	"bytes"
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"path"
@@ -105,7 +106,7 @@ func newLedgerAndFactory(dir string, chainID string, genesisBlockSys *cb.Block) 
 }
 
 func newLedger(rlf blockledger.Factory, chainID string, genesisBlockSys *cb.Block) blockledger.ReadWriter {
-	rl, err := rlf.GetOrCreate(chainID)
+	rl, err := rlf.GetOrCreate(chainID, cl.Blockmatrix)
 	if err != nil {
 		panic(err)
 	}
@@ -211,7 +212,7 @@ func TestNewRegistrar(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, id := range []string{"foo", "bar"} {
-			rl, err := lf.GetOrCreate(id)
+			rl, err := lf.GetOrCreate(id, cl.Blockmatrix)
 			require.NoError(t, err)
 
 			err = rl.Append(encoder.New(confSys).GenesisBlockForChannel(id))
@@ -538,7 +539,7 @@ func TestNewRegistrarWithFileRepo(t *testing.T) {
 		require.NoError(t, err)
 
 		// create the ledger for one of the channels with a joinblock in the file repo
-		_, err = lf.GetOrCreate("my-other-cft-channel")
+		_, err = lf.GetOrCreate("my-other-cft-channel", cl.Blockmatrix)
 		require.NoError(t, err)
 
 		config := localconfig.TopLevel{
@@ -607,7 +608,7 @@ func TestCreateChain(t *testing.T) {
 		manager := NewRegistrar(localconfig.TopLevel{}, lf, mockCrypto(), &disabled.Provider{}, cryptoProvider, nil)
 		manager.Initialize(consenters)
 
-		ledger, err := lf.GetOrCreate("mychannel")
+		ledger, err := lf.GetOrCreate("mychannel", cl.Blockmatrix)
 		require.NoError(t, err)
 
 		genesisBlock := encoder.New(confSys).GenesisBlockForChannel("mychannel")
@@ -997,7 +998,7 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		registrar := NewRegistrar(config, ledgerFactory, mockCrypto(), &disabled.Provider{}, cryptoProvider, nil)
 		registrar.Initialize(mockConsenters)
 
-		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel")
+		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel", cl.Blockmatrix)
 		require.NoError(t, err)
 		ledger.Append(genesisBlockAppRaft)
 
@@ -1022,7 +1023,7 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		registrar := NewRegistrar(config, ledgerFactory, mockCrypto(), &disabled.Provider{}, cryptoProvider, nil)
 		registrar.Initialize(mockConsenters)
 
-		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel")
+		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel", cl.Blockmatrix)
 		require.NoError(t, err)
 		ledger.Append(genesisBlockAppRaft)
 
@@ -1335,7 +1336,7 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		require.Equal(t, 0, len(channelList.Channels))
 		require.NotNil(t, channelList.SystemChannel)
 		require.Equal(t, "sys-raft-channel", channelList.SystemChannel.Name)
-		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel")
+		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel", cl.Blockmatrix)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), ledgerRW.Height(), "block was appended")
 	})
@@ -1372,7 +1373,7 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		require.Equal(t, 0, len(channelList.Channels))
 		require.NotNil(t, channelList.SystemChannel)
 		require.Equal(t, "sys-raft-channel", channelList.SystemChannel.Name)
-		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel")
+		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel", cl.Blockmatrix)
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), ledgerRW.Height(), "block was not appended")
 	})
@@ -1778,7 +1779,7 @@ func generateCertificates(t *testing.T, confAppRaft *genesisconfig.Profile, tlsC
 func createLedgerAndChain(t *testing.T, r *Registrar, lf blockledger.Factory, b *cb.Block, channel string) {
 	require.Nil(t, r.GetChain(channel))
 	require.NotContains(t, lf.ChannelIDs(), channel)
-	ledger, err := lf.GetOrCreate(channel)
+	ledger, err := lf.GetOrCreate(channel, cl.Blockmatrix)
 	require.NoError(t, err)
 	ledger.Append(b)
 	require.Contains(t, lf.ChannelIDs(), channel)

@@ -233,6 +233,7 @@ type SubmitRequest struct {
 	Channel string `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
 	// last_validation_seq denotes the last
 	// configuration sequence at which the
+	
 	// sender validated this message.
 	LastValidationSeq uint64 `protobuf:"varint,2,opt,name=last_validation_seq,json=lastValidationSeq,proto3" json:"last_validation_seq,omitempty"`
 	// content is the fabric transaction

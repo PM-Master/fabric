@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package multichannel
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -78,7 +79,7 @@ func TestBlockSignature(t *testing.T) {
 	rlf, err := fileledger.New(dir, &disabled.Provider{})
 	require.NoError(t, err)
 
-	l, err := rlf.GetOrCreate("mychannel")
+	l, err := rlf.GetOrCreate("mychannel", ledger.Blockmatrix)
 	require.NoError(t, err)
 	lastBlock := protoutil.NewBlock(0, nil)
 	l.Append(lastBlock)

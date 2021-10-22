@@ -9,12 +9,12 @@ package kvledger
 import (
 	"bytes"
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"path"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
-	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
 	"github.com/hyperledger/fabric/common/ledger/dataformat"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
@@ -68,7 +68,6 @@ type Provider struct {
 	collElgNotifier      *collElgNotifier
 	stats                *stats
 	fileLock             *leveldbhelper.FileLock
-	ledgerType           commonledger.Type
 }
 
 // NewProvider instantiates a new Provider.
@@ -77,8 +76,6 @@ func NewProvider(initializer *ledger.Initializer) (pr *Provider, e error) {
 	p := &Provider{
 		initializer: initializer,
 	}
-
-	p.ledgerType = initializer.LedgerType
 
 	defer func() {
 		if e != nil {
@@ -143,15 +140,10 @@ func (p *Provider) initLedgerIDInventory() error {
 
 func (p *Provider) initBlockStoreProvider() error {
 	indexConfig := &blkstorage.IndexConfig{AttrsToIndex: attrsToIndex}
-	// DBM todo switch case on p.LT
-	blkStoreProvider, err := blkstorage.NewProvider(
-		blkstorage.NewConf(
-			BlockStorePath(p.initializer.Config.RootFSPath),
-			maxBlockFileSize,
-		),
-		indexConfig,
-		p.initializer.MetricsProvider,
-	)
+	blkStoreProvider, err := blkstorage.NewProvider(blkstorage.NewConf(
+		BlockStorePath(p.initializer.Config.RootFSPath),
+		maxBlockFileSize,
+	), indexConfig, p.initializer.MetricsProvider)
 	if err != nil {
 		return err
 	}
@@ -281,7 +273,9 @@ func (p *Provider) CreateFromGenesisBlock(genesisBlock *common.Block) (ledger.Pe
 		return nil, err
 	}
 
-	lgr, err := p.open(ledgerID, nil, false)
+	// TODO DBM get ledger type from gensis block as it is in the Config object
+
+	lgr, err := p.open(ledgerID, cl.Blockmatrix, nil, false)
 	if err != nil {
 		return nil, p.deleteUnderConstructionLedger(lgr, ledgerID, err)
 	}
@@ -314,7 +308,7 @@ func (p *Provider) deleteUnderConstructionLedger(ledger ledger.PeerLedger, ledge
 }
 
 // Open implements the corresponding method from interface ledger.PeerLedgerProvider
-func (p *Provider) Open(ledgerID string) (ledger.PeerLedger, error) {
+func (p *Provider) Open(ledgerID string, lt cl.Type) (ledger.PeerLedger, error) {
 	logger.Debugf("Open() opening kvledger: %s", ledgerID)
 	// Check the ID store to ensure that the chainId/ledgerId exists
 	ledgerMetadata, err := p.idStore.getLedgerMetadata(ledgerID)
@@ -332,12 +326,12 @@ func (p *Provider) Open(ledgerID string) (ledger.PeerLedger, error) {
 	if err != nil {
 		return nil, err
 	}
-	return p.open(ledgerID, bootSnapshotMetadata, false)
+	return p.open(ledgerID, lt, bootSnapshotMetadata, false)
 }
 
-func (p *Provider) open(ledgerID string, bootSnapshotMetadata *snapshotMetadata, initializingFromSnapshot bool) (ledger.PeerLedger, error) {
+func (p *Provider) open(ledgerID string, lt cl.Type, bootSnapshotMetadata *snapshotMetadata, initializingFromSnapshot bool) (ledger.PeerLedger, error) {
 	// Get the block store for a chain/ledger
-	blockStore, err := p.blkStoreProvider.Open(ledgerID)
+	blockStore, err := p.blkStoreProvider.Open(ledgerID, lt)
 	if err != nil {
 		return nil, err
 	}

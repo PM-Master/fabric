@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -330,7 +331,7 @@ func (p *Provider) CreateFromSnapshot(snapshotDir string) (ledger.PeerLedger, st
 		logger.Debugw("Preparing history db", "ledgerID", ledgerID)
 	}
 
-	lgr, err := p.open(ledgerID, metadata, true)
+	lgr, err := p.open(ledgerID, cl.Blockmatrix, metadata, true)
 	if err != nil {
 		return nil, "", p.deleteUnderConstructionLedger(
 			lgr,

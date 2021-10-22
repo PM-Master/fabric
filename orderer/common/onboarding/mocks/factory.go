@@ -4,6 +4,7 @@ package mocks
 import (
 	"sync"
 
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blockledger"
 )
 
@@ -22,10 +23,11 @@ type Factory struct {
 	closeMutex       sync.RWMutex
 	closeArgsForCall []struct {
 	}
-	GetOrCreateStub        func(string) (blockledger.ReadWriter, error)
+	GetOrCreateStub        func(string, ledger.Type) (blockledger.ReadWriter, error)
 	getOrCreateMutex       sync.RWMutex
 	getOrCreateArgsForCall []struct {
 		arg1 string
+		arg2 ledger.Type
 	}
 	getOrCreateReturns struct {
 		result1 blockledger.ReadWriter
@@ -55,15 +57,16 @@ func (fake *Factory) ChannelIDs() []string {
 	ret, specificReturn := fake.channelIDsReturnsOnCall[len(fake.channelIDsArgsForCall)]
 	fake.channelIDsArgsForCall = append(fake.channelIDsArgsForCall, struct {
 	}{})
+	stub := fake.ChannelIDsStub
+	fakeReturns := fake.channelIDsReturns
 	fake.recordInvocation("ChannelIDs", []interface{}{})
 	fake.channelIDsMutex.Unlock()
-	if fake.ChannelIDsStub != nil {
-		return fake.ChannelIDsStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.channelIDsReturns
 	return fakeReturns.result1
 }
 
@@ -106,9 +109,10 @@ func (fake *Factory) Close() {
 	fake.closeMutex.Lock()
 	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
 	}{})
+	stub := fake.CloseStub
 	fake.recordInvocation("Close", []interface{}{})
 	fake.closeMutex.Unlock()
-	if fake.CloseStub != nil {
+	if stub != nil {
 		fake.CloseStub()
 	}
 }
@@ -125,21 +129,23 @@ func (fake *Factory) CloseCalls(stub func()) {
 	fake.CloseStub = stub
 }
 
-func (fake *Factory) GetOrCreate(arg1 string) (blockledger.ReadWriter, error) {
+func (fake *Factory) GetOrCreate(arg1 string, arg2 ledger.Type) (blockledger.ReadWriter, error) {
 	fake.getOrCreateMutex.Lock()
 	ret, specificReturn := fake.getOrCreateReturnsOnCall[len(fake.getOrCreateArgsForCall)]
 	fake.getOrCreateArgsForCall = append(fake.getOrCreateArgsForCall, struct {
 		arg1 string
-	}{arg1})
-	fake.recordInvocation("GetOrCreate", []interface{}{arg1})
+		arg2 ledger.Type
+	}{arg1, arg2})
+	stub := fake.GetOrCreateStub
+	fakeReturns := fake.getOrCreateReturns
+	fake.recordInvocation("GetOrCreate", []interface{}{arg1, arg2})
 	fake.getOrCreateMutex.Unlock()
-	if fake.GetOrCreateStub != nil {
-		return fake.GetOrCreateStub(arg1)
+	if stub != nil {
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.getOrCreateReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 
@@ -149,17 +155,17 @@ func (fake *Factory) GetOrCreateCallCount() int {
 	return len(fake.getOrCreateArgsForCall)
 }
 
-func (fake *Factory) GetOrCreateCalls(stub func(string) (blockledger.ReadWriter, error)) {
+func (fake *Factory) GetOrCreateCalls(stub func(string, ledger.Type) (blockledger.ReadWriter, error)) {
 	fake.getOrCreateMutex.Lock()
 	defer fake.getOrCreateMutex.Unlock()
 	fake.GetOrCreateStub = stub
 }
 
-func (fake *Factory) GetOrCreateArgsForCall(i int) string {
+func (fake *Factory) GetOrCreateArgsForCall(i int) (string, ledger.Type) {
 	fake.getOrCreateMutex.RLock()
 	defer fake.getOrCreateMutex.RUnlock()
 	argsForCall := fake.getOrCreateArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *Factory) GetOrCreateReturns(result1 blockledger.ReadWriter, result2 error) {
@@ -194,15 +200,16 @@ func (fake *Factory) Remove(arg1 string) error {
 	fake.removeArgsForCall = append(fake.removeArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.RemoveStub
+	fakeReturns := fake.removeReturns
 	fake.recordInvocation("Remove", []interface{}{arg1})
 	fake.removeMutex.Unlock()
-	if fake.RemoveStub != nil {
-		return fake.RemoveStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.removeReturns
 	return fakeReturns.result1
 }
 

@@ -38,12 +38,10 @@ type Initializer struct {
 	Config                          *Config
 	CustomTxProcessors              map[common.HeaderType]CustomTxProcessor
 	HashProvider                    HashProvider
-	LedgerType                      commonledger.Type
 }
 
 // Config is a structure used to configure a ledger provider.
 type Config struct {
-	LedgerType commonledger.Type
 	// RootFSPath is the top-level directory where ledger files are stored.
 	RootFSPath string
 	// StateDBConfig holds the configuration parameters for the state database.
@@ -146,7 +144,7 @@ type PeerLedgerProvider interface {
 	// The channel id retrieved from snapshot metadata is treated as a ledger id
 	CreateFromSnapshot(snapshotDir string) (PeerLedger, string, error)
 	// Open opens an already created ledger
-	Open(ledgerID string) (PeerLedger, error)
+	Open(ledgerID string, ledgerTyper commonledger.Type) (PeerLedger, error)
 	// Exists tells whether the ledger with given id exists
 	Exists(ledgerID string) (bool, error)
 	// List lists the ids of the existing ledgers

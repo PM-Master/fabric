@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package kvledger
 
 import (
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"testing"
 
 	"github.com/hyperledger/fabric-protos-go/common"
@@ -68,7 +69,7 @@ func TestPauseAndResume(t *testing.T) {
 	assertLedgerStatus(t, provider, genesisBlocks, numLedgers, pausedLedgersAfterResume)
 
 	// open paused channel should fail
-	_, err = provider.Open(constructTestLedgerID(3))
+	_, err = provider.Open(constructTestLedgerID(3), cl.Blockmatrix)
 	require.EqualError(t, err, "cannot open ledger [ledger_000003], ledger status is [INACTIVE]")
 }
 

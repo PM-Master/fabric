@@ -622,8 +622,8 @@ chaincode:
 #
 ###############################################################################
 ledger:
-  #blockmatrix:
-  blockchain:
+  blockmatrix:
+  #blockchain:
 
   state:
     # stateDatabase - options are "goleveldb", "CouchDB"

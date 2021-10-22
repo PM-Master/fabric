@@ -893,6 +893,9 @@ func (c *Chain) ordered(msg *orderer.SubmitRequest) (batches [][]*common.Envelop
 }
 
 func (c *Chain) propose(ch chan<- *common.Block, bc *blockCreator, batches ...[]*common.Envelope) {
+
+	// cryptoprovder is available here
+
 	for _, batch := range batches {
 		b := bc.createNextBlock(batch)
 		c.logger.Infof("Created block [%d], there are %d blocks in flight", b.Header.Number, c.blockInflight)

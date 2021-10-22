@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package kvledger
 
 import (
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"testing"
 
 	"github.com/hyperledger/fabric-protos-go/ledger/queryresult"
@@ -117,7 +118,7 @@ func TestStateListener(t *testing.T) {
 		t.Fatalf("Failed to create new Provider: %s", err)
 	}
 	defer provider.Close()
-	lgr, err = provider.Open(channelid)
+	lgr, err = provider.Open(channelid, cl.Blockmatrix)
 	require.NoError(t, err)
 	defer lgr.Close()
 	require.NoError(t, err)

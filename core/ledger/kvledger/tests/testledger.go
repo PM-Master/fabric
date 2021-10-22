@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package tests
 
 import (
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"testing"
 	"time"
 
@@ -90,7 +91,7 @@ func (env *env) createTestLedgerFromSnapshot(snapshotDir string) *testLedger {
 // openTestLedger opens an existing ledger and retruns a 'testhelper' for the ledger
 func (env *env) openTestLedger(id string) *testLedger {
 	t := env.t
-	lgr, err := env.ledgerMgr.OpenLedger(id)
+	lgr, err := env.ledgerMgr.OpenLedger(id, cl.Blockmatrix)
 	require.NoError(t, err)
 	return &testLedger{
 		client:    newClient(lgr, id, t),

@@ -2,7 +2,11 @@ package blkstorage
 
 import (
 	"crypto/sha256"
+	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
+	"github.com/hyperledger/fabric/protoutil"
 	"math"
 )
 
@@ -148,4 +152,143 @@ func ColumnBlockNumbers(size uint64, colIndex uint64) []uint64 {
 	}
 
 	return blocksNums
+}
+
+type KeyInTx struct {
+	IsDelete         bool
+	ValidatingTxInfo *blockmatrix.ValidatingTxInfo
+}
+
+func getKeysInBlock(block *common.Block) (map[blockmatrix.EncodedNsKey]KeyInTx, error) {
+	blockData := block.Data
+	blockNum := block.Header.Number
+	keys := make(map[blockmatrix.EncodedNsKey]KeyInTx)
+
+	for txIndex, envbytes := range blockData.Data {
+		var env *common.Envelope
+		var err error
+
+		if envbytes == nil {
+			logger.Debugf("got nil data bytes for tx index %d, block num %d", txIndex, blockNum)
+			continue
+		}
+
+		env, err = protoutil.GetEnvelopeFromBlock(envbytes)
+		if err != nil {
+			logger.Errorf("error getting tx from block [%d], %s", blockNum, err)
+			return nil, err
+		}
+
+		validatingInfo, err := blockmatrix.GetValidatingTxInfo(env)
+		if err != nil {
+			return nil, err
+		}
+
+		var txRWSet *rwsetutil.TxRwSet
+		if isEndorserTx(env) {
+			ccAction, err := protoutil.GetActionFromEnvelope(envbytes)
+			if err != nil {
+				logger.Errorf("error getting tx from block [%d], %s", blockNum, err)
+				return nil, err
+			}
+
+			// get the RWSet from the cc results
+			txRWSet = &rwsetutil.TxRwSet{}
+			if err = txRWSet.FromProtoBytes(ccAction.Results); err != nil {
+				logger.Errorf("Could not get tx rw set from action: %s", err)
+			}
+		} else {
+			logger.Debugf("ignoring non endorser tx at index [%d] of block [%d]", txIndex, blockNum)
+			continue
+		}
+
+		// for each write in each RWset create a new block
+		// if the block header contains an existing key, the block that key currently points to will
+		// be overwritten
+		for _, rwSet := range txRWSet.NsRwSets {
+			for _, write := range rwSet.KvRwSet.Writes {
+				keys[blockmatrix.EncodeNsKey(rwSet.NameSpace, write.Key)] = KeyInTx{
+					IsDelete:         write.IsDelete,
+					ValidatingTxInfo: validatingInfo,
+				}
+			}
+		}
+	}
+
+	logger.Debugf("keys %v found in block [%d]", keys, blockNum)
+
+	return keys, nil
+}
+
+func serializeInfo(info *BlockmatrixInfo) ([]byte, error) {
+	buf := proto.NewBuffer(nil)
+	if err := buf.EncodeVarint(info.Size); err != nil {
+		return nil, err
+	}
+	if err := buf.EncodeVarint(info.BlockCount); err != nil {
+		return nil, err
+	}
+
+	// encode length of row hashes
+	if err := buf.EncodeVarint(uint64(len(info.RowHashes))); err != nil {
+		return nil, err
+	}
+	// encode length of column hashes
+	if err := buf.EncodeVarint(uint64(len(info.ColumnHashes))); err != nil {
+		return nil, err
+	}
+
+	// encode row/col hashes
+	for _, rowHash := range info.RowHashes {
+		if err := buf.EncodeRawBytes(rowHash); err != nil {
+			return nil, err
+		}
+	}
+	for _, colHash := range info.ColumnHashes {
+		if err := buf.EncodeRawBytes(colHash); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
+}
+
+func deserializeInfo(bytes []byte) (*BlockmatrixInfo, error) {
+	info := &BlockmatrixInfo{}
+	buf := proto.NewBuffer(bytes)
+	var (
+		err          error
+		numRowHashes uint64
+		numColHashes uint64
+	)
+
+	if info.Size, err = buf.DecodeVarint(); err != nil {
+		return nil, err
+	}
+	if info.BlockCount, err = buf.DecodeVarint(); err != nil {
+		return nil, err
+	}
+
+	if numRowHashes, err = buf.DecodeVarint(); err != nil {
+		return nil, err
+	}
+	if numColHashes, err = buf.DecodeVarint(); err != nil {
+		return nil, err
+	}
+
+	info.RowHashes = make([][]byte, numRowHashes)
+	info.ColumnHashes = make([][]byte, numColHashes)
+
+	for i := uint64(0); i < numRowHashes; i++ {
+		if info.RowHashes[i], err = buf.DecodeRawBytes(false); err != nil {
+			return nil, err
+		}
+	}
+	for i := uint64(0); i < numColHashes; i++ {
+		if info.ColumnHashes[i], err = buf.DecodeRawBytes(false); err != nil {
+			return nil, err
+		}
+	}
+
+	return info, nil
 }

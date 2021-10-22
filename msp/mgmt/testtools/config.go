@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package msptesttools
 
 import (
+	"fmt"
 	"github.com/hyperledger/fabric/bccsp/factory"
 	"github.com/hyperledger/fabric/core/config/configtest"
 	"github.com/hyperledger/fabric/msp"
@@ -17,6 +18,7 @@ import (
 // and a chain MSP for the default chain
 func LoadMSPSetupForTesting() error {
 	dir := configtest.GetDevMspDir()
+	fmt.Println(dir)
 	conf, err := msp.GetLocalMspConfig(dir, nil, "SampleOrg")
 	if err != nil {
 		return err

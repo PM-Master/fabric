@@ -116,7 +116,8 @@ func (store *BlockStore) RetrieveTxValidationCodeByTxID(txID string) (peer.TxVal
 // Technically, the TxIDs appear in the sort order of radix-sort/shortlex. However,
 // since practically all the TxIDs are of same length, so the sort order would be the lexical sort order
 func (store *BlockStore) ExportTxIds(dir string, newHashFunc snapshot.NewHashFunc) (map[string][]byte, error) {
-	return store.fileMgr.index.exportUniqueTxIDs(dir, newHashFunc)
+	// return store.fileMgr.index.exportUniqueTxIDs(dir, newHashFunc)
+	return store.fileMgr.exportUniqueTxIDs(dir, newHashFunc)
 }
 
 // Shutdown shuts down the block store

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package peer
 
 import (
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -108,7 +109,7 @@ func TestConfigTxUpdateChanConfig(t *testing.T) {
 
 	lgr.Close()
 	helper.clearMockChains()
-	_, err = ledgerMgr.OpenLedger(channelID)
+	_, err = ledgerMgr.OpenLedger(channelID, cl.Blockmatrix)
 	require.NoError(t, err)
 }
 

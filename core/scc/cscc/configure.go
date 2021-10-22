@@ -156,6 +156,8 @@ func (e *PeerConfiger) InvokeNoShim(args [][]byte, sp *pb.SignedProposal) pb.Res
 				"channel id from the block due to [%s]", err))
 		}
 
+		// TODO DBM could get ledger type from config block here
+
 		// 1. check config block's format and capabilities requirement.
 		if err := validateConfigBlock(block, e.bccsp); err != nil {
 			return shim.Error(fmt.Sprintf("\"JoinChain\" for channelID = %s failed because of validation "+

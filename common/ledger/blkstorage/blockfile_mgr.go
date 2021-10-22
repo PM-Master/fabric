@@ -10,6 +10,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger/snapshot"
+	"github.com/hyperledger/fabric/msp"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -47,6 +49,8 @@ type blockfileMgr struct {
 
 	ledgerType     ledger.Type
 	blockmatrixMgr *blockmatrixMgr
+
+	signer msp.SigningIdentity
 }
 
 /*
@@ -257,6 +261,14 @@ func syncBlockfilesInfoFromFS(rootDir string, blkfilesInfo *blockfilesInfo) {
 	}
 	blkfilesInfo.noBlockFiles = false
 	logger.Debugf("blockfilesInfo after updates by scanning the last file segment:%s", blkfilesInfo)
+}
+
+func (mgr *blockfileMgr) exportUniqueTxIDs(dir string, newHashFunc snapshot.NewHashFunc) (map[string][]byte, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.exportUniqueTxIDs(dir, newHashFunc)
+	}
+
+	return mgr.index.exportUniqueTxIDs(dir, newHashFunc)
 }
 
 func deriveBlockfilePath(rootDir string, suffixNum int) string {
@@ -629,10 +641,6 @@ func (mgr *blockfileMgr) retrieveBlockHeaderByNumber(blockNum uint64) (*common.B
 }
 
 func (mgr *blockfileMgr) retrieveBlocks(startNum uint64) (ledger.ResultsIterator, error) {
-	/*if mgr.isBlockmatrix() {
-		return newBlockmatrixItr(mgr.blockmatrixMgr, startNum), nil
-	}*/
-
 	if startNum < mgr.firstPossibleBlockNumberInBlockFiles() {
 		return nil, errors.Errorf(
 			"cannot serve block [%d]. The ledger is bootstrapped from a snapshot. First available block = [%d]",

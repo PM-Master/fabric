@@ -9,6 +9,7 @@ package history
 import (
 	"bytes"
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"strconv"
 	"testing"
@@ -28,6 +29,8 @@ import (
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/stretchr/testify/require"
 )
+
+const TestLedgerType = cl.Blockchain
 
 func TestMain(m *testing.M) {
 	flogging.ActivateSpec("leveldbhelper,history=debug")
@@ -130,7 +133,7 @@ func TestHistory(t *testing.T) {
 	defer env.cleanup()
 	provider := env.testBlockStorageEnv.provider
 	ledger1id := "ledger1"
-	store1, err := provider.Open(ledger1id)
+	store1, err := provider.Open(ledger1id, cl.Blockchain)
 	require.NoError(t, err, "Error upon provider.OpenBlockStore()")
 	defer store1.Shutdown()
 	require.Equal(t, "history", env.testHistoryDB.Name())
@@ -242,7 +245,7 @@ func TestHistoryForInvalidTran(t *testing.T) {
 	defer env.cleanup()
 	provider := env.testBlockStorageEnv.provider
 	ledger1id := "ledger1"
-	store1, err := provider.Open(ledger1id)
+	store1, err := provider.Open(ledger1id, cl.Blockchain)
 	require.NoError(t, err, "Error upon provider.OpenBlockStore()")
 	defer store1.Shutdown()
 
@@ -299,7 +302,7 @@ func TestHistoryWithKeyContainingNilBytes(t *testing.T) {
 	defer env.cleanup()
 	provider := env.testBlockStorageEnv.provider
 	ledger1id := "ledger1"
-	store1, err := provider.Open(ledger1id)
+	store1, err := provider.Open(ledger1id, TestLedgerType)
 	require.NoError(t, err, "Error upon provider.OpenBlockStore()")
 	defer store1.Shutdown()
 
@@ -397,7 +400,7 @@ func TestHistoryWithBlockNumber256(t *testing.T) {
 	defer env.cleanup()
 	provider := env.testBlockStorageEnv.provider
 	ledger1id := "ledger1"
-	store1, err := provider.Open(ledger1id)
+	store1, err := provider.Open(ledger1id, TestLedgerType)
 	require.NoError(t, err, "Error upon provider.OpenBlockStore()")
 	defer store1.Shutdown()
 
@@ -446,7 +449,7 @@ func TestDrop(t *testing.T) {
 
 	// create ledger data for "ledger1" and "ledger2"
 	for _, ledgerid := range []string{"ledger1", "ledger2"} {
-		store, err := provider.Open(ledgerid)
+		store, err := provider.Open(ledgerid, TestLedgerType)
 		require.NoError(t, err)
 		defer store.Shutdown()
 		bg, gb := testutil.NewBlockGenerator(t, ledgerid, false)
@@ -480,7 +483,7 @@ func TestDrop(t *testing.T) {
 
 	// verify ledger1 historydb has no entries and ledger2 historydb remains same
 	historydb := env.testHistoryDBProvider.GetDBHandle("ledger1")
-	store, err := provider.Open("ledger1")
+	store, err := provider.Open("ledger1", TestLedgerType)
 	require.NoError(t, err)
 	historydbQE, err := historydb.NewQueryExecutor(store)
 	require.NoError(t, err)
@@ -491,7 +494,7 @@ func TestDrop(t *testing.T) {
 	require.True(t, empty)
 
 	historydb2 := env.testHistoryDBProvider.GetDBHandle("ledger2")
-	store2, err := provider.Open("ledger2")
+	store2, err := provider.Open("ledger2", TestLedgerType)
 	require.NoError(t, err)
 	historydbQE2, err := historydb2.NewQueryExecutor(store2)
 	require.NoError(t, err)
@@ -510,7 +513,7 @@ func TestHistoryWithKVWriteOfNilValue(t *testing.T) {
 	env := newTestHistoryEnv(t)
 	defer env.cleanup()
 	provider := env.testBlockStorageEnv.provider
-	store, err := provider.Open("ledger1")
+	store, err := provider.Open("ledger1", TestLedgerType)
 	require.NoError(t, err)
 	defer store.Shutdown()
 

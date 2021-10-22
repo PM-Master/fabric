@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package onboarding
 
 import (
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"sync"
 	"time"
@@ -190,7 +191,7 @@ type ledgerFactory struct {
 }
 
 func (lf *ledgerFactory) GetOrCreate(chainID string) (cluster.LedgerWriter, error) {
-	ledger, err := lf.Factory.GetOrCreate(chainID)
+	ledger, err := lf.Factory.GetOrCreate(chainID, cl.Blockmatrix)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +372,7 @@ func (vl *verifierLoader) loadVerifiers() verifiersByChannel {
 }
 
 func (vl *verifierLoader) loadVerifier(chain string) cluster.BlockVerifier {
-	ledger, err := vl.ledgerFactory.GetOrCreate(chain)
+	ledger, err := vl.ledgerFactory.GetOrCreate(chain, cl.Blockmatrix)
 	if err != nil {
 		vl.logger.Panicf("Failed obtaining ledger for channel %s", chain)
 	}

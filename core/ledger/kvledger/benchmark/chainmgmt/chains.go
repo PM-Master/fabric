@@ -8,6 +8,7 @@ package chainmgmt
 
 import (
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"path/filepath"
 	"sync"
@@ -78,7 +79,7 @@ func (m *chainsMgr) createOrOpenChains() []*Chain {
 	case ChainInitOpOpen:
 		for i := 0; i < numChains; i++ {
 			chainID := ChainID(i)
-			peerLedger, err := m.ledgerMgr.OpenLedger(chainID.String())
+			peerLedger, err := m.ledgerMgr.OpenLedger(chainID.String(), cl.Blockmatrix)
 			panicOnError(err)
 			c := newChain(chainID, peerLedger, m)
 			m.chainsMap[chainID] = c

@@ -9,6 +9,7 @@ package ledgermgmt
 import (
 	"bytes"
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"sync"
 
 	"github.com/hyperledger/fabric-protos-go/common"
@@ -200,7 +201,7 @@ func (m *LedgerMgr) resetJoinBySnapshotStatus() {
 }
 
 // OpenLedger returns a ledger for the given id
-func (m *LedgerMgr) OpenLedger(id string) (ledger.PeerLedger, error) {
+func (m *LedgerMgr) OpenLedger(id string, ledgerType cl.Type) (ledger.PeerLedger, error) {
 	logger.Infof("Opening ledger with id = %s", id)
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -208,7 +209,7 @@ func (m *LedgerMgr) OpenLedger(id string) (ledger.PeerLedger, error) {
 	if ok {
 		return nil, ErrLedgerAlreadyOpened
 	}
-	l, err := m.ledgerProvider.Open(id)
+	l, err := m.ledgerProvider.Open(id, ledgerType)
 	if err != nil {
 		return nil, err
 	}

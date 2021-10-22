@@ -49,6 +49,7 @@ func (s sleeper) Sleep(d time.Duration, doneC chan struct{}) {
 type LedgerInfo interface {
 	// LedgerHeight returns current local ledger height
 	LedgerHeight() (uint64, error)
+	// TODO DBM IsBlockmatrix() (bool, error)
 }
 
 // GossipServiceAdapter serves to provide basic functionality
@@ -227,6 +228,7 @@ func (d *Deliverer) processMsg(msg *orderer.DeliverResponse) error {
 		return errors.Errorf("received bad status %v from orderer", t.Status)
 	case *orderer.DeliverResponse_Block:
 		blockNum := t.Block.Header.Number
+		// TODO DBM this is where the verification is failing
 		if err := d.BlockVerifier.VerifyBlock(gossipcommon.ChannelID(d.ChannelID), blockNum, t.Block); err != nil {
 			return errors.WithMessage(err, "block from orderer could not be verified")
 		}

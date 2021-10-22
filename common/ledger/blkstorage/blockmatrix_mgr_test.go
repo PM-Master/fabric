@@ -1,10 +1,13 @@
 package blkstorage
 
 import (
+	"fmt"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
+	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/require"
@@ -20,6 +23,79 @@ func newTestBlockmatrixWrapper(env *testEnv, ledgerid string) *testBlockfileMgrW
 	return &testBlockfileMgrWrapper{env.t, blkStore.fileMgr}
 }
 
+func TestBlockRewrite(t *testing.T) {
+	env := newTestEnv(t, NewConf(testPath(), 0))
+	defer env.Cleanup()
+	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	defer blkfileMgrWrapper.close()
+
+	env1 := createTestEnv("chain1", "cc1", createRWset(t, map[string]map[string]string{"cc1": {"k1": "v1", "k2": "v2"}}))
+	env1.Signature = []byte("env1-signature")
+	block := testutil.NewBlock([]*common.Envelope{env1}, 0, []byte("hash"))
+	block.Data.Data[0] = protoutil.MarshalOrPanic(env1)
+
+	blkfileMgrWrapper.addBlocks([]*common.Block{block})
+
+	env2 := createTestEnv("chain1", "cc1", createRWset(t, map[string]map[string]string{"cc1": {"k1": ""}}))
+	env2.Signature = []byte("env2-signature")
+	env3 := createTestEnv("chain1", "cc1", createRWset(t, map[string]map[string]string{"cc1": {"k2": ""}}))
+	env3.Signature = []byte("env3-signature")
+
+	block = testutil.NewBlock([]*common.Envelope{env2, env3}, 1, []byte("hash"))
+
+	blkfileMgrWrapper.addBlocks([]*common.Block{block})
+
+	b1, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.retrieveBlockByNumber(0)
+	require.NoError(t, err)
+	txRWSet, err := blockmatrix.ExtractTxRwSetsFromEnvelope(protoutil.UnmarshalEnvelopeOrPanic(b1.Data.Data[0]))
+	if err != nil {
+		return
+	}
+	require.Equal(t, 0, len(txRWSet[0].NsRwSets[0].KvRwSet.Writes))
+
+	metadata := b1.Metadata.Metadata[blockmatrix.BlockMetadataIndex_ValidatedTxUpdates]
+	vtuColl := &blockmatrix.ValidatedTxUpdateCollection{}
+	err = vtuColl.Unmarshal(metadata)
+	require.NoError(t, err)
+	fmt.Println(vtuColl.ValidatedTxUpdates[0].Hash)
+
+	hash, err := blockmatrix.ComputeTxHash(b1.Metadata, 0, b1.Data.Data[0])
+	require.NoError(t, err)
+	fmt.Println(hash)
+}
+
+func createTestEnv(chainID string, ccID string, results []byte) *common.Envelope {
+	env, _, err := testutil.ConstructUnsignedTxEnv(
+		chainID,
+		&peer.ChaincodeID{Name: ccID, Version: "1.0"},
+		&peer.Response{Status: 200},
+		results,
+		protoutil.ComputeTxID([]byte("nonce"), []byte("creator")),
+		nil,
+		nil,
+		common.HeaderType_ENDORSER_TRANSACTION,
+	)
+	if err != nil {
+		return nil
+	}
+
+	return env
+}
+
+func createRWset(t *testing.T, nsKVs map[string]map[string]string) []byte {
+	rwsetBuilder := rwsetutil.NewRWSetBuilder()
+	for ns, kvs := range nsKVs {
+		for key, value := range kvs {
+			rwsetBuilder.AddToWriteSet(ns, key, []byte(value))
+		}
+	}
+	rwset, err := rwsetBuilder.GetTxSimulationResults()
+	require.NoError(t, err)
+	rwsetBytes, err := rwset.GetPubSimulationBytes()
+	require.NoError(t, err)
+	return rwsetBytes
+}
+
 func TestMatrixBlockfileMgrBlockReadWrite(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
@@ -30,101 +106,6 @@ func TestMatrixBlockfileMgrBlockReadWrite(t *testing.T) {
 	blkfileMgrWrapper.testGetBlockByHash(blocks)
 	blkfileMgrWrapper.testGetBlockByNumber(blocks)
 }
-
-/*func TestMatrixAddBlockWithWrongHash(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
-	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
-	defer blkfileMgrWrapper.close()
-	blocks := testutil.ConstructTestBlocks(t, 10)
-	blkfileMgrWrapper.addBlocks(blocks[0:9])
-	lastBlock := blocks[9]
-	lastBlock.Header.PreviousHash = []byte("someJunkHash") // set the hash to something unexpected
-	err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.addBlock(lastBlock)
-	require.Error(t, err, "An error is expected when adding a block with some unexpected hash")
-	require.Contains(t, err.Error(), "unexpected Previous block hash. Expected PreviousHash")
-	t.Logf("err = %s", err)
-}*/
-
-/*func TestMatrixBlockfileMgrCrashDuringWriting(t *testing.T) {
-	testMatrixBlockfileMgrCrashDuringWriting(t, 10, 2, 1000, 10, false)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 10, 2, 1000, 1, false)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 10, 2, 1000, 0, false)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 0, 0, 1000, 10, false)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 0, 5, 1000, 10, false)
-
-	testMatrixBlockfileMgrCrashDuringWriting(t, 10, 2, 1000, 10, true)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 10, 2, 1000, 1, true)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 10, 2, 1000, 0, true)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 0, 0, 1000, 10, true)
-	testMatrixBlockfileMgrCrashDuringWriting(t, 0, 5, 1000, 10, true)
-}
-
-func testMatrixBlockfileMgrCrashDuringWriting(t *testing.T, numBlksBeforeSavingBlkfilesInfo int,
-	numBlksAfterSavingBlkfilesInfo int, numLastBlockBytes int, numPartialBytesToWrite int,
-	deleteBFInfo bool) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
-	defer env.Cleanup()
-	ledgerid := "testLedger"
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, ledgerid)
-	bg, gb := testutil.NewBlockGenerator(t, ledgerid, false)
-
-	// create all necessary blocks
-	totalBlocks := numBlksBeforeSavingBlkfilesInfo + numBlksAfterSavingBlkfilesInfo
-	allBlocks := []*common.Block{gb}
-	allBlocks = append(allBlocks, bg.NextTestBlocks(totalBlocks+1)...)
-
-	// identify the blocks that are to be added beforeCP, afterCP, and after restart
-	blocksBeforeSavingBlkfilesInfo := []*common.Block{}
-	blocksAfterSavingBlkfilesInfo := []*common.Block{}
-	if numBlksBeforeSavingBlkfilesInfo != 0 {
-		blocksBeforeSavingBlkfilesInfo = allBlocks[0:numBlksBeforeSavingBlkfilesInfo]
-	}
-	if numBlksAfterSavingBlkfilesInfo != 0 {
-		blocksAfterSavingBlkfilesInfo = allBlocks[numBlksBeforeSavingBlkfilesInfo : numBlksBeforeSavingBlkfilesInfo+numBlksAfterSavingBlkfilesInfo]
-	}
-	blocksAfterRestart := allBlocks[numBlksBeforeSavingBlkfilesInfo+numBlksAfterSavingBlkfilesInfo:]
-
-	// add blocks before cp
-	blkfileMgrWrapper.addBlocks(blocksBeforeSavingBlkfilesInfo)
-	currentBlkfilesInfo := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo
-	blkfilesInfo1 := &blockfilesInfo{
-		latestFileNumber:   currentBlkfilesInfo.latestFileNumber,
-		latestFileSize:     currentBlkfilesInfo.latestFileSize,
-		noBlockFiles:       currentBlkfilesInfo.noBlockFiles,
-		lastPersistedBlock: currentBlkfilesInfo.lastPersistedBlock,
-	}
-
-	// add blocks after cp
-	blkfileMgrWrapper.addBlocks(blocksAfterSavingBlkfilesInfo)
-	blkfilesInfo2 := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo
-
-	// simulate a crash scenario
-	lastBlockBytes := []byte{}
-	encodedLen := proto.EncodeVarint(uint64(numLastBlockBytes))
-	randomBytes := testutil.ConstructRandomBytes(t, numLastBlockBytes)
-	lastBlockBytes = append(lastBlockBytes, encodedLen...)
-	lastBlockBytes = append(lastBlockBytes, randomBytes...)
-	partialBytes := lastBlockBytes[:numPartialBytesToWrite]
-	blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.currentFileWriter.append(partialBytes, true)
-	if deleteBFInfo {
-		err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.db.Delete(blkMgrInfoKey, true)
-		require.NoError(t, err)
-	} else {
-		blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.saveBlkfilesInfo(blkfilesInfo1, true)
-	}
-	blkfileMgrWrapper.close()
-
-	// simulate a start after a crash
-	blkfileMgrWrapper = newTestBlockmatrixWrapper(env, ledgerid)
-	defer blkfileMgrWrapper.close()
-	blkfilesInfo3 := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blockfilesInfo
-	require.Equal(t, blkfilesInfo2, blkfilesInfo3)
-
-	// add fresh blocks after restart
-	blkfileMgrWrapper.addBlocks(blocksAfterRestart)
-	testMatrixBlockfileMgrBlockIterator(t, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr, 0, len(allBlocks)-1, allBlocks)
-}*/
 
 func TestMatrixBlockfileMgrBlockIterator(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
