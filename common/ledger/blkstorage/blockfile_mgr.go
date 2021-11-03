@@ -523,6 +523,14 @@ func (mgr *blockfileMgr) getBlockchainInfo() *common.BlockchainInfo {
 	return mgr.bcInfo.Load().(*common.BlockchainInfo)
 }
 
+func (mgr *blockfileMgr) getBlockmatrixInfo() *BlockmatrixInfo {
+	if !mgr.isBlockmatrix() {
+		logger.Errorf("cannot get blockmatrix info for ledger that uses blockchain")
+		return &BlockmatrixInfo{}
+	}
+	return mgr.blockmatrixMgr.getBlockmatrixInfo()
+}
+
 func (mgr *blockfileMgr) updateBlockfilesInfo(blkfilesInfo *blockfilesInfo) {
 	mgr.blkfilesInfoCond.L.Lock()
 	defer mgr.blkfilesInfoCond.L.Unlock()

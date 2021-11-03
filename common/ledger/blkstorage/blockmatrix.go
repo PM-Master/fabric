@@ -159,7 +159,7 @@ type KeyInTx struct {
 	ValidatingTxInfo *blockmatrix.ValidatingTxInfo
 }
 
-func getKeysInBlock(block *common.Block) (map[blockmatrix.EncodedNsKey]KeyInTx, error) {
+func getKeysInBlock(block *common.Block, txs map[string]bool) (map[blockmatrix.EncodedNsKey]KeyInTx, error) {
 	blockData := block.Data
 	blockNum := block.Header.Number
 	keys := make(map[blockmatrix.EncodedNsKey]KeyInTx)
@@ -179,13 +179,18 @@ func getKeysInBlock(block *common.Block) (map[blockmatrix.EncodedNsKey]KeyInTx, 
 			return nil, err
 		}
 
+		txId, isEndorserTx := isEndorserTx(env)
+		if !txs[txId] {
+			continue
+		}
+
 		validatingInfo, err := blockmatrix.GetValidatingTxInfo(env)
 		if err != nil {
 			return nil, err
 		}
 
 		var txRWSet *rwsetutil.TxRwSet
-		if isEndorserTx(env) {
+		if isEndorserTx {
 			ccAction, err := protoutil.GetActionFromEnvelope(envbytes)
 			if err != nil {
 				logger.Errorf("error getting tx from block [%d], %s", blockNum, err)

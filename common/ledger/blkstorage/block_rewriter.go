@@ -7,7 +7,7 @@ import (
 	"github.com/hyperledger/fabric/protoutil"
 )
 
-func isEndorserTx(env *common.Envelope) bool {
+func isEndorserTx(env *common.Envelope) (string, bool) {
 	var chdr *common.ChannelHeader
 	var payload *common.Payload
 	var err error
@@ -16,7 +16,7 @@ func isEndorserTx(env *common.Envelope) bool {
 	}
 
 	logger.Debug("header type is ", common.HeaderType(chdr.Type))
-	return common.HeaderType(chdr.Type) == common.HeaderType_ENDORSER_TRANSACTION
+	return chdr.TxId, common.HeaderType(chdr.Type) == common.HeaderType_ENDORSER_TRANSACTION
 }
 
 func rewriteBlock(block *common.Block, keyMap map[blockmatrix.EncodedNsKey]KeyInTx) error {

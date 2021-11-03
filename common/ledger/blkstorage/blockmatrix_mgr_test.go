@@ -1,7 +1,6 @@
 package blkstorage
 
 import (
-	"fmt"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/ledger"
@@ -29,31 +28,81 @@ func TestBlockRewrite(t *testing.T) {
 	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
 	defer blkfileMgrWrapper.close()
 
-	env1 := createTestEnv("chain1", "cc1", createRWset(t, map[string]map[string]string{"cc1": {"k1": "v1", "k2": "v2"}}))
+	env1 := createTestEnv("chain1", "cc1",
+		createRWset(t, map[string]map[string]string{"cc1": {"k1": "v1", "k2": "v2", "k3": "v3"}}))
 	env1.Signature = []byte("env1-signature")
-	block := testutil.NewBlock([]*common.Envelope{env1}, 0, []byte("hash"))
-	block.Data.Data[0] = protoutil.MarshalOrPanic(env1)
+	block1 := testutil.NewBlock([]*common.Envelope{env1}, 0, []byte("hash"))
 
-	blkfileMgrWrapper.addBlocks([]*common.Block{block})
+	blkfileMgrWrapper.addBlocks([]*common.Block{block1})
 
-	env2 := createTestEnv("chain1", "cc1", createRWset(t, map[string]map[string]string{"cc1": {"k1": ""}}))
+	r, c := blockmatrix.CalculateExpectedHashes(2, block1)
+	require.Equal(t, &BlockmatrixInfo{
+		Size:         2,
+		BlockCount:   1,
+		RowHashes:    r,
+		ColumnHashes: c,
+	}, blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo())
+
+	env2 := createTestEnv("chain1", "cc1",
+		createRWset(t, map[string]map[string]string{"cc1": {"k1": ""}}))
 	env2.Signature = []byte("env2-signature")
-	env3 := createTestEnv("chain1", "cc1", createRWset(t, map[string]map[string]string{"cc1": {"k2": ""}}))
+	env3 := createTestEnv("chain1", "cc1",
+		createRWset(t, map[string]map[string]string{"cc1": {"k2": ""}}))
 	env3.Signature = []byte("env3-signature")
+	block2 := testutil.NewBlock([]*common.Envelope{env2, env3}, 1, []byte("hash"))
 
-	block = testutil.NewBlock([]*common.Envelope{env2, env3}, 1, []byte("hash"))
+	blkfileMgrWrapper.addBlocks([]*common.Block{block2})
 
-	blkfileMgrWrapper.addBlocks([]*common.Block{block})
+	// check blockchain info
+	info := blkfileMgrWrapper.blockfileMgr.getBlockchainInfo()
+	require.Equal(t, uint64(2), info.Height)
 
-	b1, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.retrieveBlockByNumber(0)
+	// check blockmatrix info
+	// get expected block after change
+	txID1, sign1 := getTxIDAndSignatureForEnvelope(block2.Data.Data[0])
+	txID2, sign2 := getTxIDAndSignatureForEnvelope(block2.Data.Data[1])
+	err := rewriteBlock(block1, map[blockmatrix.EncodedNsKey]KeyInTx{
+		blockmatrix.EncodeNsKey("cc1", "k1"): {
+			IsDelete: true,
+			ValidatingTxInfo: &blockmatrix.ValidatingTxInfo{
+				TxID:      txID1,
+				Signature: sign1,
+			},
+		},
+		blockmatrix.EncodeNsKey("cc1", "k2"): {
+			IsDelete: true,
+			ValidatingTxInfo: &blockmatrix.ValidatingTxInfo{
+				TxID:      txID2,
+				Signature: sign2,
+			},
+		},
+	})
 	require.NoError(t, err)
-	txRWSet, err := blockmatrix.ExtractTxRwSetsFromEnvelope(protoutil.UnmarshalEnvelopeOrPanic(b1.Data.Data[0]))
+
+	bmInfo := blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo()
+	r, c = blockmatrix.CalculateExpectedHashes(2, block1, block2)
+	require.Equal(t, &BlockmatrixInfo{
+		Size:         2,
+		BlockCount:   2,
+		RowHashes:    r,
+		ColumnHashes: c,
+	}, bmInfo)
+
+	/*b0, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.retrieveBlockByNumber(0)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(b0.Data.Data))
+
+	txRWSet, err := blockmatrix.ExtractTxRwSetsFromEnvelope(protoutil.UnmarshalEnvelopeOrPanic(b0.Data.Data[0]))
 	if err != nil {
 		return
 	}
-	require.Equal(t, 0, len(txRWSet[0].NsRwSets[0].KvRwSet.Writes))
+	require.Equal(t, 1, len(txRWSet[0].NsRwSets[0].KvRwSet.Writes))
 
-	metadata := b1.Metadata.Metadata[blockmatrix.BlockMetadataIndex_ValidatedTxUpdates]
+	write := txRWSet[0].NsRwSets[0].KvRwSet.Writes[0]
+	require.Equal(t, "k3", write.Key)
+	require.Equal(t, []byte("v3"), write.Value)*/
+
+	/*metadata := b1.Metadata.Metadata[blockmatrix.BlockMetadataIndex_ValidatedTxUpdates]
 	vtuColl := &blockmatrix.ValidatedTxUpdateCollection{}
 	err = vtuColl.Unmarshal(metadata)
 	require.NoError(t, err)
@@ -61,7 +110,19 @@ func TestBlockRewrite(t *testing.T) {
 
 	hash, err := blockmatrix.ComputeTxHash(b1.Metadata, 0, b1.Data.Data[0])
 	require.NoError(t, err)
-	fmt.Println(hash)
+	fmt.Println(hash)*/
+}
+
+func getTxIDAndSignatureForEnvelope(bytes []byte) (string, []byte) {
+	env := protoutil.UnmarshalEnvelopeOrPanic(bytes)
+	var chdr *common.ChannelHeader
+	var payload *common.Payload
+	var err error
+	if payload, err = protoutil.UnmarshalPayload(env.Payload); err == nil {
+		chdr, err = protoutil.UnmarshalChannelHeader(payload.Header.ChannelHeader)
+	}
+
+	return chdr.TxId, env.Signature
 }
 
 func createTestEnv(chainID string, ccID string, results []byte) *common.Envelope {

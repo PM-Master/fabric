@@ -44,7 +44,7 @@ type (
 )
 
 func newBlockmatrixMgr(ledgerID string, conf *Conf, indexConfig *IndexConfig, provider *leveldbhelper.Provider) (*blockmatrixMgr, error) {
-	mtxDir := conf.getLedgerBlockDir(ledgerID)
+	mtxDir := conf.getMatrixLedgerBlockDir(ledgerID)
 	_, err := fileutil.CreateDirIfMissing(mtxDir)
 	if err != nil {
 		panic(fmt.Sprintf("Error creating block storage root dir [%s]: %s", mtxDir, err))
@@ -130,7 +130,6 @@ func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error
 
 	return err
 }
-
 
 func (mgr *blockmatrixMgr) exportUniqueTxIDs(dir string, hashFunc snapshot.NewHashFunc) (map[string][]byte, error) {
 	if mgr.isAttributeIndexed(IndexableAttrTxID) {
@@ -342,11 +341,13 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *Blockmatr
 	}
 
 	// for each tx do txid -> blockNum
+	validTxs := make(map[string]bool, 0)
 	if mgr.isAttributeIndexed(IndexableAttrTxID) {
 		txsfltr := txflags.ValidationFlags(block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER])
 		for i, tx := range txs.txOffsets {
 			fmt.Println("\tDBM block=", block.Header.Number, "txid=", tx.txID)
-			txIndex := &txIndex{blockNum: block.Header.Number, index: i, validationCode: int32(txsfltr.Flag(i))}
+			validationCode := txsfltr.Flag(i)
+			txIndex := &txIndex{blockNum: block.Header.Number, index: i, validationCode: int32(validationCode)}
 			txIndexBytes, err := txIndex.marshal()
 			if err != nil {
 				return err
@@ -357,12 +358,16 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *Blockmatr
 			if mgr.isAttributeIndexed(IndexableAttrBlockNumTranNum) {
 				batch.Put(constructBlockNumTranNumKey(block.Header.Number, uint64(i)), txIndexBytes)
 			}
+
+			if validationCode == peer.TxValidationCode_VALID {
+				validTxs[tx.txID] = true
+			}
 		}
 	}
 
 	// key to blocknum index
 	// get keys in block
-	keys, err := getKeysInBlock(block)
+	keys, err := getKeysInBlock(block, validTxs)
 	if err != nil {
 		return err
 	}
@@ -461,7 +466,7 @@ func (mgr *blockmatrixMgr) handleKeyDeletes(blocks map[uint64]*common.Block, key
 		// update block in matrix
 		// remove the block from each keys blocknums -- reuse put block in matrix function -> may not need this
 		// TODO mgr.putBlockInMatrix()
-		need to remove the the block number for each key's key->blockNums index'
+		// need to remove the the block number for each key's key->blockNums index'
 	}
 
 	return nil
@@ -473,19 +478,21 @@ func (mgr *blockmatrixMgr) updateBlockmatrixInfo(block *common.Block, info *Bloc
 	return mgr.updateRowColumnHashes(row, col, info, block.Header.Number, hash)
 }
 
-
 func (mgr *blockmatrixMgr) updateRowColumnHashes(row uint64, col uint64, info *BlockmatrixInfo, blockNum uint64, dataHash []byte) error {
+	fmt.Println("updating row/col hashes: ", row, col, "for block", blockNum)
 	var err error
 
 	info.RowHashes[row], err = mgr.calculateRowHash(info.Size, row, blockNum, dataHash)
 	if err != nil {
 		return err
 	}
+	fmt.Println("\t", info.RowHashes[row])
 
 	info.ColumnHashes[col], err = mgr.calculateColumnHash(info.Size, col, blockNum, dataHash)
 	if err != nil {
 		return err
 	}
+	fmt.Println("\t", info.ColumnHashes[col])
 
 	return nil
 }
@@ -494,6 +501,8 @@ func (mgr *blockmatrixMgr) calculateRowHash(size uint64, row uint64, blockNum ui
 	h := sha256.New()
 	blocks := RowBlockNumbers(size, row)
 
+	blockNum = blockNum + 1
+
 	for _, n := range blocks {
 		hash := make([]byte, 0)
 		if n == blockNum {
@@ -514,6 +523,7 @@ func (mgr *blockmatrixMgr) calculateRowHash(size uint64, row uint64, blockNum ui
 		h.Write(hash)
 	}
 
+	fmt.Println("calculated row hash: ", h.Sum(nil))
 	return h.Sum(nil), nil
 }
 
@@ -521,6 +531,8 @@ func (mgr *blockmatrixMgr) calculateColumnHash(size uint64, col uint64, blockNum
 	h := sha256.New()
 	blocks := ColumnBlockNumbers(size, col)
 
+	blockNum = blockNum + 1
+
 	for _, n := range blocks {
 		hash := make([]byte, 0)
 		if n == blockNum {
@@ -536,11 +548,12 @@ func (mgr *blockmatrixMgr) calculateColumnHash(size uint64, col uint64, blockNum
 			}
 
 			hash = block.Header.DataHash
+			fmt.Println("col hash", hash)
 		}
 
 		h.Write(hash)
 	}
-
+	fmt.Println("calculated col hash: ", h.Sum(nil))
 	return h.Sum(nil), nil
 }
 
@@ -854,7 +867,6 @@ func encodeBlockNums(blockNums []uint64) ([]byte, error) {
 	return keys
 }
 */
-
 
 /*func (mgr *blockmatrixMgr) calculateRowAndColumnHashes(size uint64) (rowHashes [][]byte, columnHashes [][]byte, err error) {
 	rowHashes = make([][]byte, 0)

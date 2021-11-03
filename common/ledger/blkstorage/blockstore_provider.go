@@ -9,6 +9,7 @@ package blkstorage
 import (
 	"fmt"
 	"github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger/blockledger"
 	"os"
 
 	"github.com/hyperledger/fabric/common/flogging"
@@ -97,6 +98,18 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 		}
 	}
 
+	dirPath = conf.getMatricesDir()
+	if _, err := os.Stat(dirPath); err != nil {
+		if !os.IsNotExist(err) { // NotExist is the only permitted error type
+			return nil, errors.Wrapf(err, "failed to read matrix ledger directory %s", dirPath)
+		}
+
+		logger.Info("Creating new matrix ledger directory at", dirPath)
+		if err = os.MkdirAll(dirPath, 0755); err != nil {
+			return nil, errors.Wrapf(err, "failed to create ledger directory: %s", dirPath)
+		}
+	}
+
 	stats := newStats(metricsProvider)
 	return &BlockStoreProvider{
 		conf:              conf,
@@ -115,7 +128,7 @@ func (p *BlockStoreProvider) Open(ledgerid string, ledgerType ledger.Type) (*Blo
 	if ledgerType.IsBlockmatrix() {
 		fmt.Println("DBM opening blockmatrix ledger ", ledgerid)
 		dbConf := &leveldbhelper.Conf{
-			DBPath:         p.conf.getLedgerBlockDir(ledgerid),
+			DBPath:         p.conf.getMatrixLedgerBlockDir(ledgerid),
 			ExpectedFormat: dataFormatVersion(p.indexConfig),
 		}
 
@@ -158,6 +171,14 @@ func (p *BlockStoreProvider) ImportFromSnapshot(
 // Exists tells whether the BlockStore with given id exists
 func (p *BlockStoreProvider) Exists(ledgerid string) (bool, error) {
 	exists, err := fileutil.DirExists(p.conf.getLedgerBlockDir(ledgerid))
+	if err != nil {
+		return false, err
+	}
+
+	if !exists {
+		exists, err = fileutil.DirExists(p.conf.getMatrixLedgerBlockDir(ledgerid))
+	}
+
 	return exists, err
 }
 
@@ -180,12 +201,45 @@ func (p *BlockStoreProvider) Drop(ledgerid string) error {
 	if err := os.RemoveAll(p.conf.getLedgerBlockDir(ledgerid)); err != nil {
 		return err
 	}
+
+	if ok, err := fileutil.DirExists(p.conf.getMatrixLedgerBlockDir(ledgerid)); err != nil {
+		return err
+	} else if ok {
+		if err := os.RemoveAll(p.conf.getMatrixLedgerBlockDir(ledgerid)); err != nil {
+			return err
+		}
+
+		if err := fileutil.SyncDir(p.conf.getMatricesDir()); err != nil {
+			return err
+		}
+	}
+
 	return fileutil.SyncDir(p.conf.getChainsDir())
 }
 
 // List lists the ids of the existing ledgers
-func (p *BlockStoreProvider) List() ([]string, error) {
-	return fileutil.ListSubdirs(p.conf.getChainsDir())
+func (p *BlockStoreProvider) List() ([]blockledger.ChannelInfo, error) {
+	list := make([]blockledger.ChannelInfo, 0)
+
+	ledgers, err := fileutil.ListSubdirs(p.conf.getChainsDir())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, l := range ledgers {
+		list = append(list, blockledger.ChannelInfo{ID: l, LedgerType: ledger.Blockchain})
+	}
+
+	ledgers, err = fileutil.ListSubdirs(p.conf.getMatricesDir())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, l := range ledgers {
+		list = append(list, blockledger.ChannelInfo{ID: l, LedgerType: ledger.Blockmatrix})
+	}
+
+	return list, nil
 }
 
 // Close closes the BlockStoreProvider
