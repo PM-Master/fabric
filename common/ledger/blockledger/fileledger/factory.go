@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package fileledger
 
 import (
+	"fmt"
 	"github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"path/filepath"
@@ -22,7 +23,7 @@ import (
 type blockStoreProvider interface {
 	Open(ledgerid string, ledgerType ledger.Type) (*blkstorage.BlockStore, error)
 	Drop(ledgerid string) error
-	List() ([]string, error)
+	List() ([]blockledger.ChannelInfo, error)
 	Close()
 }
 
@@ -86,11 +87,12 @@ func (f *fileLedgerFactory) Remove(channelID string) error {
 }
 
 // ChannelIDs returns the channel IDs the factory is aware of.
-func (f *fileLedgerFactory) ChannelIDs() []string {
+func (f *fileLedgerFactory) ChannelIDs() []blockledger.ChannelInfo {
 	channelIDs, err := f.blkstorageProvider.List()
 	if err != nil {
 		logger.Panic(err)
 	}
+	fmt.Println(len(channelIDs))
 	return channelIDs
 }
 

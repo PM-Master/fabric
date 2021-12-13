@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -518,20 +519,20 @@ type VerifierFactory interface {
 
 // VerificationRegistry registers verifiers and retrieves them.
 type VerificationRegistry struct {
-	LoadVerifier       func(chain string) BlockVerifier
+	LoadVerifier       func(chain string, lt ledger.Type) BlockVerifier
 	Logger             *flogging.FabricLogger
 	VerifierFactory    VerifierFactory
 	VerifiersByChannel map[string]BlockVerifier
 }
 
 // RegisterVerifier adds a verifier into the registry if applicable.
-func (vr *VerificationRegistry) RegisterVerifier(chain string) {
+func (vr *VerificationRegistry) RegisterVerifier(chain string, lt ledger.Type) {
 	if _, exists := vr.VerifiersByChannel[chain]; exists {
 		vr.Logger.Debugf("No need to register verifier for chain %s", chain)
 		return
 	}
 
-	v := vr.LoadVerifier(chain)
+	v := vr.LoadVerifier(chain, lt)
 	if v == nil {
 		vr.Logger.Errorf("Failed loading verifier for chain %s", chain)
 		return

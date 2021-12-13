@@ -80,7 +80,7 @@ func (mgr *blockmatrixMgr) initDB(ledgerID string, p *leveldbhelper.Provider) er
 }
 
 func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error {
-	info := &BlockmatrixInfo{}
+	info := &blockmatrix.Info{}
 	bcInfo := &common.BlockchainInfo{}
 
 	infoBytes, err := db.Get(blkMtxInfoKey)
@@ -90,7 +90,7 @@ func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error
 
 	blkfilesInfo := &blockfilesInfo{}
 	if infoBytes != nil {
-		if info, err = deserializeInfo(infoBytes); err != nil {
+		if info, err = blockmatrix.DeserializeInfo(infoBytes); err != nil {
 			return err
 		}
 
@@ -110,7 +110,7 @@ func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error
 			return err
 		}
 	} else {
-		info = &BlockmatrixInfo{
+		info = &blockmatrix.Info{
 			Size:         1,
 			BlockCount:   0,
 			RowHashes:    make([][]byte, 0),
@@ -217,15 +217,12 @@ func (mgr *blockmatrixMgr) isAttributeIndexed(attribute IndexableAttr) bool {
 	return mgr.indexConfig.Contains(attribute)
 }
 
-func (mgr *blockmatrixMgr) saveBlockMatrixInfo(bmInfo *BlockmatrixInfo, bcInfo *common.BlockchainInfo, saveInDB bool) error {
-	fmt.Println("DBM updating block matrix info", bmInfo)
-	fmt.Println("DBM updating blockchain info", bcInfo)
-
+func (mgr *blockmatrixMgr) saveBlockMatrixInfo(bmInfo *blockmatrix.Info, bcInfo *common.BlockchainInfo, saveInDB bool) error {
 	mgr.blockmatrixInfo.Store(bmInfo)
 	mgr.bcInfo.Store(bcInfo)
 
 	if saveInDB {
-		infoBytes, err := serializeInfo(bmInfo)
+		infoBytes, err := blockmatrix.SerializeInfo(bmInfo)
 		if err != nil {
 			return errors.Wrap(err, "error marshaling info bytes")
 		}
@@ -271,7 +268,7 @@ func (mgr *blockmatrixMgr) addBlock(block *common.Block) (err error) {
 	blockmatrixInfo.BlockCount = blockmatrixInfo.BlockCount + 1
 
 	// update the matrix size if needed
-	size := ComputeSize(blockmatrixInfo.BlockCount)
+	size := blockmatrix.ComputeSize(blockmatrixInfo.BlockCount)
 	if size > blockmatrixInfo.Size {
 		updateBlockmatrixSize(size, blockmatrixInfo)
 	}
@@ -284,7 +281,7 @@ func (mgr *blockmatrixMgr) addBlock(block *common.Block) (err error) {
 	}
 
 	// serialize the info and store in batch
-	infoBytes, err := serializeInfo(blockmatrixInfo)
+	infoBytes, err := blockmatrix.SerializeInfo(blockmatrixInfo)
 	if err != nil {
 		return errors.Wrap(err, "error marshaling info bytes")
 	}
@@ -292,6 +289,7 @@ func (mgr *blockmatrixMgr) addBlock(block *common.Block) (err error) {
 	batch.Put(blkMtxInfoKey, infoBytes)
 	batch.Put(lastPersistedBlockKey, encodeBlockNum(block.Header.Number))
 
+	// write batch to db
 	if err = mgr.blockDB.WriteBatch(batch, true); err != nil {
 		return err
 	}
@@ -299,8 +297,6 @@ func (mgr *blockmatrixMgr) addBlock(block *common.Block) (err error) {
 	bcInfo.Height = blockmatrixInfo.BlockCount
 	bcInfo.CurrentBlockHash = protoutil.BlockHeaderHash(block.Header)
 	bcInfo.PreviousBlockHash = block.Header.PreviousHash
-
-	fmt.Println("height/hash", bcInfo.Height, bcInfo.CurrentBlockHash)
 
 	// store block matrix and chain info
 	mgr.updateBlockfilesInfo(&blockfilesInfo{lastPersistedBlock: block.Header.Number})
@@ -323,51 +319,15 @@ func (mgr *blockmatrixMgr) getBlockNumsForKey(ns, key string) ([]uint64, error) 
 	return decodeBlockNums(blockNumsBytes)
 }
 
-func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *BlockmatrixInfo, batch *leveldbhelper.UpdateBatch) error {
-	blockBytes, txs, err := serializeBlock(block)
+func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *blockmatrix.Info, batch *leveldbhelper.UpdateBatch) error {
+	validTxs, err := mgr.indexBlock(block, batch)
 	if err != nil {
 		return err
 	}
 
-	// do indexes
-
-	// blockNum -> blockBytes
-	batch.Put(constructBlockNumKey(block.Header.Number), blockBytes)
-
-	// blockHash -> block num
-	if mgr.isAttributeIndexed(IndexableAttrBlockHash) {
-		blockHash := protoutil.BlockHeaderHash(block.Header)
-		batch.Put(constructBlockHashKey(blockHash), encodeBlockNum(block.Header.Number))
-	}
-
-	// for each tx do txid -> blockNum
-	validTxs := make(map[string]bool, 0)
-	if mgr.isAttributeIndexed(IndexableAttrTxID) {
-		txsfltr := txflags.ValidationFlags(block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER])
-		for i, tx := range txs.txOffsets {
-			fmt.Println("\tDBM block=", block.Header.Number, "txid=", tx.txID)
-			validationCode := txsfltr.Flag(i)
-			txIndex := &txIndex{blockNum: block.Header.Number, index: i, validationCode: int32(validationCode)}
-			txIndexBytes, err := txIndex.marshal()
-			if err != nil {
-				return err
-			}
-			batch.Put(constructTxIDKey(tx.txID, block.Header.Number, uint64(i)), txIndexBytes)
-
-			// put blocknum trans num to tx index
-			if mgr.isAttributeIndexed(IndexableAttrBlockNumTranNum) {
-				batch.Put(constructBlockNumTranNumKey(block.Header.Number, uint64(i)), txIndexBytes)
-			}
-
-			if validationCode == peer.TxValidationCode_VALID {
-				validTxs[tx.txID] = true
-			}
-		}
-	}
-
 	// key to blocknum index
 	// get keys in block
-	keys, err := getKeysInBlock(block, validTxs)
+	keys, err := blockmatrix.GetKeysInBlock(block, validTxs)
 	if err != nil {
 		return err
 	}
@@ -396,9 +356,9 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *Blockmatr
 		batch.Put(constructKeyBlockNumsKey(key.Ns(), key.Key()), blockNumsBytes)
 	}
 
-	// update hashes in info
+	// update hashes in info for created block
 	// the changes to info have not been added to the database yet
-	if err = mgr.updateBlockmatrixInfo(block, info); err != nil {
+	if err = mgr.updateBlockmatrixInfo(info, block); err != nil {
 		return err
 	}
 
@@ -410,12 +370,55 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *Blockmatr
 	}
 
 	// update blocks that have a key that has been deleted
-	return mgr.handleKeyDeletes(blocksToRewrite, keysToDelete, batch)
+	return mgr.rewriteBlocks(info, blocksToRewrite, keysToDelete, batch)
 }
 
-func (mgr *blockmatrixMgr) getBlocksToRewrite(keys map[blockmatrix.EncodedNsKey]KeyInTx) (map[uint64]*common.Block, map[blockmatrix.EncodedNsKey]KeyInTx, error) {
+func (mgr *blockmatrixMgr) indexBlock(block *common.Block, batch *leveldbhelper.UpdateBatch) (map[string]bool, error) {
+	blockBytes, txs, err := serializeBlock(block)
+	if err != nil {
+		return nil, err
+	}
+
+	// blockNum -> blockBytes
+	batch.Put(constructBlockNumKey(block.Header.Number), blockBytes)
+
+	// blockHash -> block num
+	if mgr.isAttributeIndexed(IndexableAttrBlockHash) {
+		blockHash := protoutil.BlockHeaderHash(block.Header)
+		batch.Put(constructBlockHashKey(blockHash), encodeBlockNum(block.Header.Number))
+	}
+
+	// for each tx do txid -> blockNum
+	validTxs := make(map[string]bool, 0)
+	if mgr.isAttributeIndexed(IndexableAttrTxID) {
+		txsfltr := txflags.ValidationFlags(block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER])
+		for i, tx := range txs.txOffsets {
+			validationCode := txsfltr.Flag(i)
+			txIndex := &txIndex{blockNum: block.Header.Number, index: i, validationCode: int32(validationCode)}
+			txIndexBytes, err := txIndex.marshal()
+			if err != nil {
+				return nil, err
+			}
+
+			batch.Put(constructTxIDKey(tx.txID, block.Header.Number, uint64(i)), txIndexBytes)
+
+			// put blocknum trans num to tx index
+			if mgr.isAttributeIndexed(IndexableAttrBlockNumTranNum) {
+				batch.Put(constructBlockNumTranNumKey(block.Header.Number, uint64(i)), txIndexBytes)
+			}
+
+			if validationCode == peer.TxValidationCode_VALID {
+				validTxs[tx.txID] = true
+			}
+		}
+	}
+
+	return validTxs, nil
+}
+
+func (mgr *blockmatrixMgr) getBlocksToRewrite(keys map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx) (map[uint64]*common.Block, map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx, error) {
 	blocks := make(map[uint64]*common.Block, 0)
-	deletedKeys := make(map[blockmatrix.EncodedNsKey]KeyInTx, 0)
+	deletedKeys := make(map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx, 0)
 
 	for key, keyInfo := range keys {
 		if !keyInfo.IsDelete {
@@ -444,16 +447,29 @@ func (mgr *blockmatrixMgr) getBlocksToRewrite(keys map[blockmatrix.EncodedNsKey]
 	return blocks, deletedKeys, nil
 }
 
-func (mgr *blockmatrixMgr) handleKeyDeletes(blocks map[uint64]*common.Block, keys map[blockmatrix.EncodedNsKey]KeyInTx, batch *leveldbhelper.UpdateBatch) error {
+func (mgr *blockmatrixMgr) rewriteBlocks(
+	info *blockmatrix.Info,
+	blocks map[uint64]*common.Block,
+	keys map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx,
+	batch *leveldbhelper.UpdateBatch) error {
 	for _, block := range blocks {
-		originalHash := protoutil.BlockHeaderHash(block.Header)
+		// originalHash := protoutil.BlockHeaderHash(block.Header)
 
-		if err := rewriteBlock(block, keys); err != nil {
+		var (
+			deleted bool
+			err     error
+		)
+
+		fmt.Println("datahash", protoutil.BlockDataHash(block.Data))
+		if deleted, err = blockmatrix.RewriteBlock(block, keys); err != nil {
 			return err
 		}
+		fmt.Println("datahash2", protoutil.BlockDataHash(block.Data))
 
-		// delete block indexes
-		batch.Delete(constructBlockHashKey(originalHash))
+		// if no key was deleted skip index update
+		if !deleted {
+			continue
+		}
 
 		blockBytes, _, err := serializeBlock(block)
 		if err != nil {
@@ -463,43 +479,47 @@ func (mgr *blockmatrixMgr) handleKeyDeletes(blocks map[uint64]*common.Block, key
 		// blockNum -> blockBytes
 		batch.Put(constructBlockNumKey(block.Header.Number), blockBytes)
 
-		// update block in matrix
-		// remove the block from each keys blocknums -- reuse put block in matrix function -> may not need this
-		// TODO mgr.putBlockInMatrix()
-		// need to remove the the block number for each key's key->blockNums index'
+		// blockHash -> block num
+		if mgr.isAttributeIndexed(IndexableAttrBlockHash) {
+			// TODO block hash is the same because block data hash is not rewritten
+			blockHash := protoutil.BlockHeaderHash(block.Header)
+			batch.Put(constructBlockHashKey(blockHash), encodeBlockNum(block.Header.Number))
+		}
+
+		// update info
+		if err = mgr.updateBlockmatrixInfo(info, block); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (mgr *blockmatrixMgr) updateBlockmatrixInfo(block *common.Block, info *BlockmatrixInfo) error {
-	row, col := LocateBlock(block.Header.Number)
+func (mgr *blockmatrixMgr) updateBlockmatrixInfo(info *blockmatrix.Info, block *common.Block) error {
+	row, col := blockmatrix.LocateBlock(block.Header.Number)
 	hash := protoutil.BlockDataHash(block.Data)
 	return mgr.updateRowColumnHashes(row, col, info, block.Header.Number, hash)
 }
 
-func (mgr *blockmatrixMgr) updateRowColumnHashes(row uint64, col uint64, info *BlockmatrixInfo, blockNum uint64, dataHash []byte) error {
-	fmt.Println("updating row/col hashes: ", row, col, "for block", blockNum)
+func (mgr *blockmatrixMgr) updateRowColumnHashes(row uint64, col uint64, info *blockmatrix.Info, blockNum uint64, dataHash []byte) error {
 	var err error
 
 	info.RowHashes[row], err = mgr.calculateRowHash(info.Size, row, blockNum, dataHash)
 	if err != nil {
 		return err
 	}
-	fmt.Println("\t", info.RowHashes[row])
 
 	info.ColumnHashes[col], err = mgr.calculateColumnHash(info.Size, col, blockNum, dataHash)
 	if err != nil {
 		return err
 	}
-	fmt.Println("\t", info.ColumnHashes[col])
 
 	return nil
 }
 
 func (mgr *blockmatrixMgr) calculateRowHash(size uint64, row uint64, blockNum uint64, dataHash []byte) ([]byte, error) {
 	h := sha256.New()
-	blocks := RowBlockNumbers(size, row)
+	blocks := blockmatrix.RowBlockNumbers(size, row)
 
 	blockNum = blockNum + 1
 
@@ -517,19 +537,18 @@ func (mgr *blockmatrixMgr) calculateRowHash(size uint64, row uint64, blockNum ui
 				return nil, err
 			}
 
-			hash = block.Header.DataHash
+			hash = protoutil.BlockDataHash(block.Data)
 		}
 
 		h.Write(hash)
 	}
 
-	fmt.Println("calculated row hash: ", h.Sum(nil))
 	return h.Sum(nil), nil
 }
 
 func (mgr *blockmatrixMgr) calculateColumnHash(size uint64, col uint64, blockNum uint64, dataHash []byte) ([]byte, error) {
 	h := sha256.New()
-	blocks := ColumnBlockNumbers(size, col)
+	blocks := blockmatrix.ColumnBlockNumbers(size, col)
 
 	blockNum = blockNum + 1
 
@@ -547,13 +566,12 @@ func (mgr *blockmatrixMgr) calculateColumnHash(size uint64, col uint64, blockNum
 				return nil, err
 			}
 
-			hash = block.Header.DataHash
-			fmt.Println("col hash", hash)
+			hash = protoutil.BlockDataHash(block.Data)
 		}
 
 		h.Write(hash)
 	}
-	fmt.Println("calculated col hash: ", h.Sum(nil))
+
 	return h.Sum(nil), nil
 }
 
@@ -742,8 +760,8 @@ func (mgr *blockmatrixMgr) retrieveTransactionByBlockNumTranNum(blockNum uint64,
 	return protoutil.GetEnvelopeFromBlock(txBytes)
 }
 
-func (mgr *blockmatrixMgr) getBlockmatrixInfo() *BlockmatrixInfo {
-	return mgr.blockmatrixInfo.Load().(*BlockmatrixInfo)
+func (mgr *blockmatrixMgr) getBlockmatrixInfo() *blockmatrix.Info {
+	return mgr.blockmatrixInfo.Load().(*blockmatrix.Info)
 }
 
 func (mgr *blockmatrixMgr) getBlockchainInfo() *common.BlockchainInfo {
@@ -770,7 +788,7 @@ func (mgr *blockmatrixMgr) updateBlockchainInfo(latestBlockHash []byte, latestBl
 	mgr.bcInfo.Store(newBCInfo)
 }
 
-func updateBlockmatrixSize(newSize uint64, blockmatrixInfo *BlockmatrixInfo) {
+func updateBlockmatrixSize(newSize uint64, blockmatrixInfo *blockmatrix.Info) {
 	blockmatrixInfo.Size = newSize
 
 	h := sha256.New()
@@ -816,142 +834,6 @@ func encodeBlockNums(blockNums []uint64) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-/*func getKeysInBlock(block *common.Block) []string {
-	keys := make([]string, 0)
-	for txIndex, envbytes := range block.Data.Data {
-		var env *common.Envelope
-		var err error
-
-		if envbytes == nil {
-			logger.Debugf("got nil data bytes for tx index %d, block num %d", txIndex, block.Header.Number)
-			continue
-		}
-
-		env, err = protoutil.GetEnvelopeFromBlock(envbytes)
-		if err != nil {
-			logger.Errorf("error getting tx from block [%d], %s", block.Header.Number, err)
-			continue
-		}
-
-		var txRWSet *rwsetutil.TxRwSet
-		if isEndorserTx(env) {
-			ccAction, err := protoutil.GetActionFromEnvelope(envbytes)
-			if err != nil {
-				logger.Errorf("error getting tx from block [%d], %s", block.Header.Number, err)
-				continue
-			}
-
-			// get the RWSet from the cc results
-			txRWSet = &rwsetutil.TxRwSet{}
-			if err = txRWSet.FromProtoBytes(ccAction.Results); err != nil {
-				logger.Errorf("Could not get tx rw set from action: %s", err)
-			}
-		} else {
-			logger.Debugf("received non endorser tx at index [%d] of block [%d]", txIndex, block.Header.Number)
-			continue
-		}
-
-		// for each write in each RWset create a new block
-		// if the block header contains an existing key, the block that key currently points to will
-		// be overwritten
-		for _, rwSet := range txRWSet.NsRwSets {
-			for _, write := range rwSet.KvRwSet.Writes {
-				keys = append(keys, write.Key)
-			}
-		}
-	}
-
-	logger.Debugf("keys %v found in block [%d]", keys, block.Header.Number)
-	fmt.Println(fmt.Sprintf("keys %v found in block [%d]", keys, block.Header.Number))
-
-	return keys
-}
-*/
-
-/*func (mgr *blockmatrixMgr) calculateRowAndColumnHashes(size uint64) (rowHashes [][]byte, columnHashes [][]byte, err error) {
-	rowHashes = make([][]byte, 0)
-	columnHashes = make([][]byte, 0)
-
-	for index := uint64(0); index < size; index++ {
-		rowHashes[index], err = mgr.calculateRowHash(size, index)
-		columnHashes[index], err = mgr.calculateRowHash(size, index)
-	}
-
-	return
-}
-
-func (mgr *blockmatrixMgr) checkValidErase(info *common.BlockMatrixInfo, oldRowHashes [][]byte, oldColHashes [][]byte) (bool, error) {
-	var numRowChanged, numColChanged int
-
-	for i := uint64(0); i < info.Size; i++ {
-		if !reflect.DeepEqual(oldRowHashes[i], info.RowHashes[i]) {
-			numRowChanged++
-		} else if !reflect.DeepEqual(oldColHashes[i], info.ColumnHashes[i]) {
-			numColChanged++
-		}
-	}
-
-	return numRowChanged == 1 && numColChanged == 1, nil
-}
-
-func (mgr *blockmatrixMgr) IsValid() (bool, error) {
-	info := mgr.getBlockmatrixInfo()
-
-	// check block hashes
-	for i := uint64(1); i <= info.BlockCount; i++ {
-		if block, ok, err := fetchBlock(mgr.blockDB, i); err != nil {
-			return false, err
-		} else if !ok {
-			continue
-		} else {
-			// check that the block header datahash equals the calculated hash
-			if reflect.DeepEqual(block.Header.DataHash, mgr.calculateHash(block)) {
-				return false, fmt.Errorf("hashes for block %d are not equal", i)
-			}
-		}
-	}
-
-	// check row hashes
-	size := blockmatrix.ComputeSize(info.BlockCount)
-	for i := uint64(0); i < size; i++ {
-		var (
-			hash []byte
-			err  error
-		)
-
-		if hash, err = mgr.calculateRowHash(size, i); err != nil {
-			return false, err
-		}
-
-		if reflect.DeepEqual(info.RowHashes[i], hash) {
-			return false, fmt.Errorf("hashes for row %d are not equal", i)
-		}
-	}
-
-	// check col hashes
-	for i := uint64(0); i < size; i++ {
-		var (
-			hash []byte
-			err  error
-		)
-
-		if hash, err = mgr.calculateColumnHash(size, i); err != nil {
-			return false, err
-		}
-
-		if reflect.DeepEqual(info.ColumnHashes[i], hash) {
-			return false, fmt.Errorf("hashes for column %d are not equal", i)
-		}
-	}
-
-	// TODO check if there have been invalid deletions
-
-	return true, nil
-}
-
-func formatBlockNumKey(number uint64) []byte {
-	return []byte(fmt.Sprintf("%s%d", string(numPrefix), number))
-}*/
 func (mgr *blockmatrixMgr) fetchBlock(blockNum uint64) (*common.Block, bool, error) {
 	blockBytes, err := mgr.blockDB.Get(encodeBlockNum(blockNum))
 	if err != nil {

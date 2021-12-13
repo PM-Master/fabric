@@ -22,10 +22,15 @@ type Factory interface {
 	Remove(channelID string) error
 
 	// ChannelIDs returns the channel IDs the Factory is aware of
-	ChannelIDs() []string
+	ChannelIDs() []ChannelInfo
 
 	// Close releases all resources acquired by the factory
 	Close()
+}
+
+type ChannelInfo struct {
+	ID         string
+	LedgerType ledger.Type
 }
 
 // Iterator is useful for a chain Reader to stream blocks as they are created

@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	configtxutil "github.com/hyperledger/fabric/common/configtx"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -657,7 +657,8 @@ var _ = Describe("ChannelParticipation", func() {
 				ledgerDir := filepath.Join(network.OrdererDir(orderer3), "system")
 				lf, err := fileledger.New(ledgerDir, &disabled.Provider{})
 				Expect(err).NotTo(HaveOccurred())
-				ledger, err := lf.GetOrCreate("participation-trophy", cl.Blockmatrix)
+				lt := configtxutil.GetLedgerTypeFromGenesisBlock(configBlock)
+				ledger, err := lf.GetOrCreate("participation-trophy", lt)
 				Expect(err).NotTo(HaveOccurred())
 				err = ledger.Append(genesisBlock)
 				Expect(err).NotTo(HaveOccurred())

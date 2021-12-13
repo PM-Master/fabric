@@ -8,6 +8,7 @@ package etcdraft
 
 import (
 	"bytes"
+	"github.com/hyperledger/fabric/common/ledger"
 	"path"
 	"reflect"
 	"time"
@@ -51,8 +52,8 @@ type InactiveChainRegistry interface {
 // ChainManager defines the methods from multichannel.Registrar needed by the Consenter.
 type ChainManager interface {
 	GetConsensusChain(channelID string) consensus.Chain
-	CreateChain(channelID string)
-	SwitchChainToFollower(channelID string)
+	CreateChain(channelID string, ledgerType ledger.Type)
+	SwitchChainToFollower(channelID string, ledgerType ledger.Type)
 	ReportConsensusRelationAndStatusMetrics(channelID string, relation types.ConsensusRelation, status types.Status)
 }
 
@@ -165,7 +166,7 @@ func (c *Consenter) HandleChain(support consensus.ConsenterSupport, metadata *co
 			// There is a system channel, use the InactiveChainRegistry to track the
 			// future config updates of application channel.
 			c.InactiveChainRegistry.TrackChain(support.ChannelID(), support.Block(0), func() {
-				c.ChainManager.CreateChain(support.ChannelID())
+				c.ChainManager.CreateChain(support.ChannelID(), support.ChannelConfig().Capabilities().LedgerType())
 			})
 			c.ChainManager.ReportConsensusRelationAndStatusMetrics(support.ChannelID(), types.ConsensusRelationConfigTracker, types.StatusInactive)
 			return &inactive.Chain{Err: errors.Errorf("channel %s is not serviced by me", support.ChannelID())}, nil
@@ -237,13 +238,18 @@ func (c *Consenter) HandleChain(support consensus.ConsenterSupport, metadata *co
 		// when we have a system channel, we use the InactiveChainRegistry to track membership upon eviction.
 		c.Logger.Info("With system channel: after eviction InactiveChainRegistry.TrackChain will be called")
 		haltCallback = func() {
-			c.InactiveChainRegistry.TrackChain(support.ChannelID(), nil, func() { c.ChainManager.CreateChain(support.ChannelID()) })
+			c.InactiveChainRegistry.TrackChain(support.ChannelID(), nil,
+				func() {
+					c.ChainManager.CreateChain(support.ChannelID(), support.ChannelConfig().Capabilities().LedgerType())
+				})
 			c.ChainManager.ReportConsensusRelationAndStatusMetrics(support.ChannelID(), types.ConsensusRelationConfigTracker, types.StatusInactive)
 		}
 	} else {
 		// when we do NOT have a system channel, we switch to a follower.Chain upon eviction.
 		c.Logger.Info("Without system channel: after eviction Registrar.SwitchToFollower will be called")
-		haltCallback = func() { c.ChainManager.SwitchChainToFollower(support.ChannelID()) }
+		haltCallback = func() {
+			c.ChainManager.SwitchChainToFollower(support.ChannelID(), support.ChannelConfig().Capabilities().LedgerType())
+		}
 	}
 
 	return NewChain(

@@ -210,7 +210,7 @@ func TestSnapshotRequests(t *testing.T) {
 	provider.Close()
 	provider2 := testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
 	defer provider2.Close()
-	l2, err := provider2.Open(ledgerID, cl.Blockmatrix)
+	l2, err := provider2.Open(ledgerID, cl.Blockchain)
 	require.NoError(t, err)
 	kvledger2 := l2.(*kvLedger)
 
@@ -338,7 +338,7 @@ func TestSnapshotRequestsErrorPaths(t *testing.T) {
 
 	provider.Close()
 
-	_, err = provider.Open(ledgerID, cl.Blockmatrix)
+	_, err = provider.Open(ledgerID, cl.Blockchain)
 	require.Contains(t, err.Error(), "leveldb: closed")
 
 	err = l.SubmitSnapshotRequest(20)

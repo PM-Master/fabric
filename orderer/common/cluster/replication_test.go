@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package cluster_test
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"path/filepath"
 	"strings"
@@ -70,7 +71,7 @@ func TestIsReplicationNeeded(t *testing.T) {
 			ledgerWriter.On("Height").Return(testCase.systemChannelHeight)
 
 			ledgerFactory := &mocks.LedgerFactory{}
-			ledgerFactory.On("GetOrCreate", "system").Return(ledgerWriter, testCase.systemChannelError)
+			ledgerFactory.On("GetOrCreate", "system", ledger.Blockchain).Return(ledgerWriter, testCase.systemChannelError)
 
 			r := cluster.Replicator{
 				Filter:        cluster.AnyChannel,
@@ -186,8 +187,8 @@ func TestReplicateChainsFailures(t *testing.T) {
 			lw.On("Height").Return(uint64(0))
 
 			lf := &mocks.LedgerFactory{}
-			lf.On("GetOrCreate", "system").Return(lw, testCase.ledgerFactoryError)
-			lf.On("GetOrCreate", "channelWeAreNotPartOf").Return(lw, testCase.ledgerFactoryError)
+			lf.On("GetOrCreate", "system", ledger.Blockchain).Return(lw, testCase.ledgerFactoryError)
+			lf.On("GetOrCreate", "channelWeAreNotPartOf", ledger.Blockchain).Return(lw, testCase.ledgerFactoryError)
 
 			osn := newClusterNode(t)
 			defer osn.stop()
@@ -275,7 +276,7 @@ func TestPullChannelFailure(t *testing.T) {
 			lw.On("Height").Return(uint64(0))
 
 			lf := &mocks.LedgerFactory{}
-			lf.On("GetOrCreate", "mychannel").Return(lw, nil)
+			lf.On("GetOrCreate", "mychannel", ledger.Blockchain).Return(lw, nil)
 
 			osn := newClusterNode(t)
 			defer osn.stop()
@@ -317,7 +318,7 @@ func TestPullChannelFailure(t *testing.T) {
 			enqueueBlock(1)
 			enqueueBlock(testcase.thirdBlockSequence)
 
-			err := r.PullChannel("mychannel")
+			err := r.PullChannel("mychannel", ledger.Blockchain)
 			require.Equal(t, cluster.ErrRetryCountExhausted, err)
 		})
 	}
@@ -519,12 +520,12 @@ func TestReplicateChainsGreenPath(t *testing.T) {
 
 	lf := &mocks.LedgerFactory{}
 	lf.On("Close")
-	lf.On("GetOrCreate", "A").Return(lwA, nil)
-	lf.On("GetOrCreate", "B").Return(lwB, nil)
-	lf.On("GetOrCreate", "C").Return(lwC, nil)
-	lf.On("GetOrCreate", "D").Return(lwD, nil)
-	lf.On("GetOrCreate", "E").Return(lwE, nil)
-	lf.On("GetOrCreate", "system").Return(lwSystem, nil)
+	lf.On("GetOrCreate", "A", ledger.Blockchain).Return(lwA, nil)
+	lf.On("GetOrCreate", "B", ledger.Blockchain).Return(lwB, nil)
+	lf.On("GetOrCreate", "C", ledger.Blockchain).Return(lwC, nil)
+	lf.On("GetOrCreate", "D", ledger.Blockchain).Return(lwD, nil)
+	lf.On("GetOrCreate", "E", ledger.Blockchain).Return(lwE, nil)
+	lf.On("GetOrCreate", "system", ledger.Blockchain).Return(lwSystem, nil)
 
 	r := cluster.Replicator{
 		Filter:        cluster.AnyChannel,
@@ -996,7 +997,7 @@ func TestSkipPullingPulledChannels(t *testing.T) {
 	lw.On("Height").Return(uint64(6))
 
 	lf := &mocks.LedgerFactory{}
-	lf.On("GetOrCreate", "mychannel").Return(lw, nil)
+	lf.On("GetOrCreate", "mychannel", ledger.Blockchain).Return(lw, nil)
 
 	osn := newClusterNode(t)
 	defer osn.stop()
@@ -1037,7 +1038,7 @@ func TestSkipPullingPulledChannels(t *testing.T) {
 	osn.addExpectProbeAssert()
 	enqueueBlock(5)
 
-	err := r.PullChannel("mychannel")
+	err := r.PullChannel("mychannel", ledger.Blockchain)
 	require.NoError(t, err)
 	require.True(t, detectedChannelPulled)
 }
@@ -1615,5 +1616,5 @@ func TestFilter(t *testing.T) {
 		},
 		Logger: logger,
 	}
-	require.Equal(t, cluster.ErrSkipped, r.PullChannel("foo"))
+	require.Equal(t, cluster.ErrSkipped, r.PullChannel("foo", ledger.Blockchain))
 }

@@ -9,6 +9,8 @@ package configtx
 import (
 	"github.com/golang/protobuf/proto"
 	cb "github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/common/capabilities"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/protoutil"
 )
 
@@ -86,6 +88,51 @@ func UnmarshalConfigEnvelopeOrPanic(data []byte) *cb.ConfigEnvelope {
 		panic(err)
 	}
 	return result
+}
+
+func GetLedgerTypeFromGenesisBlock(genesisBlock *cb.Block) cl.Type {
+	env := protoutil.UnmarshalEnvelopeOrPanic(genesisBlock.Data.Data[0])
+	payload := protoutil.UnmarshalPayloadOrPanic(env.Payload)
+	envelope := UnmarshalConfigEnvelopeOrPanic(payload.Data)
+	if envelope == nil {
+		return cl.Blockchain
+	}
+
+	config := envelope.Config
+	if config == nil {
+		return cl.Blockchain
+	}
+
+	group := config.ChannelGroup
+	if group == nil {
+		return cl.Blockchain
+	}
+
+	values := group.Values
+	if values == nil {
+		return cl.Blockchain
+	}
+
+	valueCaps := values["Capabilities"]
+	if valueCaps == nil {
+		return cl.Blockchain
+	}
+
+	value := valueCaps.Value
+	caps := &cb.Capabilities{}
+	if err := proto.Unmarshal(value, caps); err != nil {
+		return cl.Blockchain
+	}
+	_, ok := caps.Capabilities[capabilities.Blockmatrix]
+	return toType(ok)
+}
+
+func toType(isBlockmatrix bool) cl.Type {
+	if isBlockmatrix {
+		return cl.Blockmatrix
+	} else {
+		return cl.Blockchain
+	}
 }
 
 // UnmarshalConfigUpdateFromPayload unmarshals configuration update from given payload

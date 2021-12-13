@@ -109,7 +109,7 @@ func TestConfigTxUpdateChanConfig(t *testing.T) {
 
 	lgr.Close()
 	helper.clearMockChains()
-	_, err = ledgerMgr.OpenLedger(channelID, cl.Blockmatrix)
+	_, err = ledgerMgr.OpenLedger(channelID, cl.Blockchain)
 	require.NoError(t, err)
 }
 

@@ -36,7 +36,7 @@ func TestBlockRewrite(t *testing.T) {
 	blkfileMgrWrapper.addBlocks([]*common.Block{block1})
 
 	r, c := blockmatrix.CalculateExpectedHashes(2, block1)
-	require.Equal(t, &BlockmatrixInfo{
+	require.Equal(t, &blockmatrix.Info{
 		Size:         2,
 		BlockCount:   1,
 		RowHashes:    r,
@@ -61,7 +61,8 @@ func TestBlockRewrite(t *testing.T) {
 	// get expected block after change
 	txID1, sign1 := getTxIDAndSignatureForEnvelope(block2.Data.Data[0])
 	txID2, sign2 := getTxIDAndSignatureForEnvelope(block2.Data.Data[1])
-	err := rewriteBlock(block1, map[blockmatrix.EncodedNsKey]KeyInTx{
+	// call rewrite on block to test the block was updated
+	_, err := blockmatrix.RewriteBlock(block1, map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx{
 		blockmatrix.EncodeNsKey("cc1", "k1"): {
 			IsDelete: true,
 			ValidatingTxInfo: &blockmatrix.ValidatingTxInfo{
@@ -81,7 +82,7 @@ func TestBlockRewrite(t *testing.T) {
 
 	bmInfo := blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo()
 	r, c = blockmatrix.CalculateExpectedHashes(2, block1, block2)
-	require.Equal(t, &BlockmatrixInfo{
+	require.Equal(t, &blockmatrix.Info{
 		Size:         2,
 		BlockCount:   2,
 		RowHashes:    r,

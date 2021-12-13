@@ -91,7 +91,7 @@ func (env *env) createTestLedgerFromSnapshot(snapshotDir string) *testLedger {
 // openTestLedger opens an existing ledger and retruns a 'testhelper' for the ledger
 func (env *env) openTestLedger(id string) *testLedger {
 	t := env.t
-	lgr, err := env.ledgerMgr.OpenLedger(id, cl.Blockmatrix)
+	lgr, err := env.ledgerMgr.OpenLedger(id, cl.Blockchain)
 	require.NoError(t, err)
 	return &testLedger{
 		client:    newClient(lgr, id, t),

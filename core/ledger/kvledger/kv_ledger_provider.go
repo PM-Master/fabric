@@ -9,6 +9,7 @@ package kvledger
 import (
 	"bytes"
 	"fmt"
+	"github.com/hyperledger/fabric/common/configtx"
 	cl "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"path"
@@ -264,18 +265,20 @@ func (p *Provider) CreateFromGenesisBlock(genesisBlock *common.Block) (ledger.Pe
 	if err != nil {
 		return nil, err
 	}
+
+	ledgerType := configtx.GetLedgerTypeFromGenesisBlock(genesisBlock)
+
 	if err = p.idStore.createLedgerID(
 		ledgerID,
 		&msgs.LedgerMetadata{
-			Status: msgs.Status_UNDER_CONSTRUCTION,
+			Status:     msgs.Status_UNDER_CONSTRUCTION,
+			LedgerType: msgs.LedgerType(ledgerType),
 		},
 	); err != nil {
 		return nil, err
 	}
 
-	// TODO DBM get ledger type from gensis block as it is in the Config object
-
-	lgr, err := p.open(ledgerID, cl.Blockmatrix, nil, false)
+	lgr, err := p.open(ledgerID, ledgerType, nil, false)
 	if err != nil {
 		return nil, p.deleteUnderConstructionLedger(lgr, ledgerID, err)
 	}
@@ -387,7 +390,7 @@ func (p *Provider) Exists(ledgerID string) (bool, error) {
 }
 
 // List implements the corresponding method from interface ledger.PeerLedgerProvider
-func (p *Provider) List() ([]string, error) {
+func (p *Provider) List() ([]ledger.LedgerInfo, error) {
 	return p.idStore.getActiveLedgerIDs()
 }
 
@@ -671,8 +674,8 @@ func (s *idStore) ledgerIDExists(ledgerID string) (bool, error) {
 	return val != nil, nil
 }
 
-func (s *idStore) getActiveLedgerIDs() ([]string, error) {
-	var ids []string
+func (s *idStore) getActiveLedgerIDs() ([]ledger.LedgerInfo, error) {
+	var ids []ledger.LedgerInfo
 	itr := s.db.GetIterator(metadataKeyPrefix, metadataKeyStop)
 	defer itr.Release()
 	for itr.Error() == nil && itr.Next() {
@@ -683,7 +686,8 @@ func (s *idStore) getActiveLedgerIDs() ([]string, error) {
 		}
 		if metadata.Status == msgs.Status_ACTIVE {
 			id := ledgerIDFromMetadataKey(itr.Key())
-			ids = append(ids, id)
+			// DBM add ledger type
+			ids = append(ids, ledger.LedgerInfo{ID: id, LedgerType: cl.ToType(int(metadata.LedgerType))})
 		}
 	}
 	if err := itr.Error(); err != nil {

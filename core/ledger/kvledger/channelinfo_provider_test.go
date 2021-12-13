@@ -35,7 +35,7 @@ func TestNamespacesAndCollections(t *testing.T) {
 	basePath, err := ioutil.TempDir("", "testchannelinfoprovider")
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
-	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockmatrix, basePath)
+	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockchain, basePath)
 	defer blkStoreProvider.Close()
 
 	// add genesis block and another config block so that we can retrieve MSPIDs
@@ -98,7 +98,7 @@ func TestGetAllMSPIDs(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
 
-	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockmatrix, basePath)
+	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockchain, basePath)
 	defer blkStoreProvider.Close()
 	channelInfoProvider := &channelInfoProvider{channelName, blkStore, nil}
 
@@ -176,7 +176,7 @@ func TestGetAllMSPIDs_NegativeTests(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
 
-	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockmatrix, basePath)
+	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockchain, basePath)
 	defer blkStoreProvider.Close()
 	channelInfoProvider := &channelInfoProvider{channelName, blkStore, nil}
 

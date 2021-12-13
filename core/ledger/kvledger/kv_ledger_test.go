@@ -375,7 +375,7 @@ func TestKVLedgerDBRecovery(t *testing.T) {
 		conf,
 	)
 	defer provider2.Close()
-	ledger2, err := provider2.Open(testLedgerid, cl.Blockmatrix)
+	ledger2, err := provider2.Open(testLedgerid, cl.Blockchain)
 	require.NoError(t, err)
 	defer ledger2.Close()
 	checkBCSummaryForTest(t, ledger2,
@@ -431,7 +431,7 @@ func TestKVLedgerDBRecovery(t *testing.T) {
 		conf,
 	)
 	defer provider3.Close()
-	ledger3, err := provider3.Open(testLedgerid, cl.Blockmatrix)
+	ledger3, err := provider3.Open(testLedgerid, cl.Blockchain)
 	require.NoError(t, err)
 	defer ledger3.Close()
 
@@ -488,7 +488,7 @@ func TestKVLedgerDBRecovery(t *testing.T) {
 		conf,
 	)
 	defer provider4.Close()
-	ledger4, err := provider4.Open(testLedgerid, cl.Blockmatrix)
+	ledger4, err := provider4.Open(testLedgerid, cl.Blockchain)
 	require.NoError(t, err)
 	defer ledger4.Close()
 	checkBCSummaryForTest(t, ledger4,
@@ -742,7 +742,7 @@ func TestCrashAfterPvtdataStoreCommit(t *testing.T) {
 	// mimic peer restart
 	provider1 := testutilNewProvider(conf, t, ccInfoProvider)
 	defer provider1.Close()
-	lgr1, err := provider1.Open(ledgerID, cl.Blockmatrix)
+	lgr1, err := provider1.Open(ledgerID, cl.Blockchain)
 	require.NoError(t, err)
 	defer lgr1.Close()
 
@@ -842,7 +842,7 @@ func TestPvtStoreAheadOfBlockStore(t *testing.T) {
 
 	provider1 := testutilNewProvider(conf, t, ccInfoProvider)
 	defer provider1.Close()
-	lgr1, err := provider1.Open(ledgerID, cl.Blockmatrix)
+	lgr1, err := provider1.Open(ledgerID, cl.Blockchain)
 	require.NoError(t, err)
 	defer lgr1.Close()
 	kvlgr = lgr1.(*kvLedger)
@@ -871,7 +871,7 @@ func TestPvtStoreAheadOfBlockStore(t *testing.T) {
 
 	provider2 := testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
 	defer provider2.Close()
-	lgr2, err := provider2.Open(ledgerID, cl.Blockmatrix)
+	lgr2, err := provider2.Open(ledgerID, cl.Blockchain)
 	require.NoError(t, err)
 	defer lgr2.Close()
 	kvlgr = lgr2.(*kvLedger)

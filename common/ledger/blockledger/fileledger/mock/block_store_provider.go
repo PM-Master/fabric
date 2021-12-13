@@ -6,6 +6,7 @@ import (
 
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
+	"github.com/hyperledger/fabric/common/ledger/blockledger"
 )
 
 type BlockStoreProvider struct {
@@ -24,16 +25,16 @@ type BlockStoreProvider struct {
 	dropReturnsOnCall map[int]struct {
 		result1 error
 	}
-	ListStub        func() ([]string, error)
+	ListStub        func() ([]blockledger.ChannelInfo, error)
 	listMutex       sync.RWMutex
 	listArgsForCall []struct {
 	}
 	listReturns struct {
-		result1 []string
+		result1 []blockledger.ChannelInfo
 		result2 error
 	}
 	listReturnsOnCall map[int]struct {
-		result1 []string
+		result1 []blockledger.ChannelInfo
 		result2 error
 	}
 	OpenStub        func(string, ledger.Type) (*blkstorage.BlockStore, error)
@@ -139,7 +140,7 @@ func (fake *BlockStoreProvider) DropReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *BlockStoreProvider) List() ([]string, error) {
+func (fake *BlockStoreProvider) List() ([]blockledger.ChannelInfo, error) {
 	fake.listMutex.Lock()
 	ret, specificReturn := fake.listReturnsOnCall[len(fake.listArgsForCall)]
 	fake.listArgsForCall = append(fake.listArgsForCall, struct {
@@ -163,34 +164,34 @@ func (fake *BlockStoreProvider) ListCallCount() int {
 	return len(fake.listArgsForCall)
 }
 
-func (fake *BlockStoreProvider) ListCalls(stub func() ([]string, error)) {
+func (fake *BlockStoreProvider) ListCalls(stub func() ([]blockledger.ChannelInfo, error)) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = stub
 }
 
-func (fake *BlockStoreProvider) ListReturns(result1 []string, result2 error) {
+func (fake *BlockStoreProvider) ListReturns(result1 []blockledger.ChannelInfo, result2 error) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = nil
 	fake.listReturns = struct {
-		result1 []string
+		result1 []blockledger.ChannelInfo
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *BlockStoreProvider) ListReturnsOnCall(i int, result1 []string, result2 error) {
+func (fake *BlockStoreProvider) ListReturnsOnCall(i int, result1 []blockledger.ChannelInfo, result2 error) {
 	fake.listMutex.Lock()
 	defer fake.listMutex.Unlock()
 	fake.ListStub = nil
 	if fake.listReturnsOnCall == nil {
 		fake.listReturnsOnCall = make(map[int]struct {
-			result1 []string
+			result1 []blockledger.ChannelInfo
 			result2 error
 		})
 	}
 	fake.listReturnsOnCall[i] = struct {
-		result1 []string
+		result1 []blockledger.ChannelInfo
 		result2 error
 	}{result1, result2}
 }

@@ -50,7 +50,7 @@ func TestLedgerMgmt(t *testing.T) {
 
 	ledgerID := constructTestLedgerID(2)
 	t.Logf("Ledger selected for test = %s", ledgerID)
-	_, err := ledgerMgr.OpenLedger(ledgerID, ledger2.Blockmatrix)
+	_, err := ledgerMgr.OpenLedger(ledgerID, ledger2.Blockchain)
 	require.Equal(t, ErrLedgerAlreadyOpened, err)
 
 	l := ledgers[2]
@@ -58,17 +58,17 @@ func TestLedgerMgmt(t *testing.T) {
 	// attempt to close the same ledger twice and ensure it doesn't panic
 	require.NotPanics(t, l.Close)
 
-	_, err = ledgerMgr.OpenLedger(ledgerID, ledger2.Blockmatrix)
+	_, err = ledgerMgr.OpenLedger(ledgerID, ledger2.Blockchain)
 	require.NoError(t, err)
 
-	_, err = ledgerMgr.OpenLedger(ledgerID, ledger2.Blockmatrix)
+	_, err = ledgerMgr.OpenLedger(ledgerID, ledger2.Blockchain)
 	require.Equal(t, ErrLedgerAlreadyOpened, err)
 	// close all opened ledgers and ledger mgmt
 	ledgerMgr.Close()
 
 	// Recreate LedgerMgr with existing ledgers
 	ledgerMgr = NewLedgerMgr(initializer)
-	_, err = ledgerMgr.OpenLedger(ledgerID, ledger2.Blockmatrix)
+	_, err = ledgerMgr.OpenLedger(ledgerID, ledger2.Blockchain)
 	require.NoError(t, err)
 	ledgerMgr.Close()
 }

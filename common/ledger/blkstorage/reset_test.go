@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"github.com/hyperledger/fabric/common/ledger"
+	cl "github.com/hyperledger/fabric/core/ledger"
 	"io/ioutil"
 	"os"
 	"path"
@@ -108,7 +109,10 @@ func TestResetBlockStore(t *testing.T) {
 
 	require.NoError(t, ResetBlockStore(blockStoreRootDir))
 	// test load and clear preResetHeight for ledger1 and ledger2
-	ledgerIDs := []string{"ledger1", "ledger2"}
+	ledgerIDs := []cl.LedgerInfo{
+		{ID: "ledger1", LedgerType: ledger.Blockchain},
+		{ID: "ledger2", LedgerType: ledger.Blockchain},
+	}
 	h, err := LoadPreResetHeight(blockStoreRootDir, ledgerIDs)
 	require.NoError(t, err)
 	require.Equal(t,
@@ -136,7 +140,9 @@ func TestResetBlockStore(t *testing.T) {
 
 	// reset again to test load and clear preResetHeight for ledger2
 	require.NoError(t, ResetBlockStore(blockStoreRootDir))
-	ledgerIDs = []string{"ledger2"}
+	ledgerIDs = []cl.LedgerInfo{
+		{ID: "ledger2", LedgerType: ledger.Blockchain},
+	}
 	h, err = LoadPreResetHeight(blockStoreRootDir, ledgerIDs)
 	require.NoError(t, err)
 	require.Equal(t,
@@ -147,7 +153,11 @@ func TestResetBlockStore(t *testing.T) {
 	)
 	require.NoError(t, ClearPreResetHeight(blockStoreRootDir, ledgerIDs))
 	// verify that ledger1 has preResetHeight file is not deleted
-	h, err = LoadPreResetHeight(blockStoreRootDir, []string{"ledger1", "ledger2"})
+	ledgerIDs = []cl.LedgerInfo{
+		{ID: "ledger1", LedgerType: ledger.Blockchain},
+		{ID: "ledger2", LedgerType: ledger.Blockchain},
+	}
+	h, err = LoadPreResetHeight(blockStoreRootDir, ledgerIDs)
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]uint64{

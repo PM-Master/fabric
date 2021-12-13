@@ -185,21 +185,21 @@ func (r *Registrar) startChannels() {
 	}
 }
 
-func (r *Registrar) discoverLedgers(channelsWithJoinBlock map[string]*cb.Block) []string {
+func (r *Registrar) discoverLedgers(channelsWithJoinBlock map[string]*cb.Block) []blockledger.ChannelInfo {
 	// Discover all ledgers. This should already include all channels with join blocks as well.
 	existingChannels := r.ledgerFactory.ChannelIDs()
 
-	for _, channelID := range existingChannels {
-		rl, err := r.ledgerFactory.GetOrCreate(channelID, cl.Blockmatrix)
+	for _, channel := range existingChannels {
+		rl, err := r.ledgerFactory.GetOrCreate(channel.ID, channel.LedgerType)
 		if err != nil {
-			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channelID, err)
+			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channel, err)
 		}
 		// Prune empty ledgers without a join block
 		if rl.Height() == 0 {
-			if _, ok := channelsWithJoinBlock[channelID]; !ok {
-				logger.Warnf("Channel '%s' has an empty ledger without a join-block, removing it", channelID)
-				if err := r.ledgerFactory.Remove(channelID); err != nil {
-					logger.Panicf("Ledger factory failed to remove empty ledger '%s', error: %s", channelID, err)
+			if _, ok := channelsWithJoinBlock[channel.ID]; !ok {
+				logger.Warnf("Channel '%s' has an empty ledger without a join-block, removing it", channel)
+				if err := r.ledgerFactory.Remove(channel.ID); err != nil {
+					logger.Panicf("Ledger factory failed to remove empty ledger '%s', error: %s", channel, err)
 				}
 			}
 		}
@@ -209,11 +209,11 @@ func (r *Registrar) discoverLedgers(channelsWithJoinBlock map[string]*cb.Block) 
 }
 
 // initSystemChannel scan for and initialize the system channel, if it exists.
-func (r *Registrar) initSystemChannel(existingChannels []string) {
-	for _, channelID := range existingChannels {
-		rl, err := r.ledgerFactory.GetOrCreate(channelID, cl.Blockmatrix)
+func (r *Registrar) initSystemChannel(existingChannels []blockledger.ChannelInfo) {
+	for _, channel := range existingChannels {
+		rl, err := r.ledgerFactory.GetOrCreate(channel.ID, channel.LedgerType)
 		if err != nil {
-			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channelID, err)
+			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channel, err)
 		}
 
 		if rl.Height() == 0 {
@@ -269,7 +269,7 @@ func (r *Registrar) initSystemChannel(existingChannels []string) {
 
 // initAppChannels initializes application channels, assuming that the system channel does NOT exist.
 // This implies that the orderer is using the channel participation API for joins (channel creation).
-func (r *Registrar) initAppChannels(existingChannels []string, channelsWithJoinBlock map[string]*cb.Block) {
+func (r *Registrar) initAppChannels(existingChannels []blockledger.ChannelInfo, channelsWithJoinBlock map[string]*cb.Block) {
 	// init app channels with join-blocks
 	for channelID, joinBlock := range channelsWithJoinBlock {
 		ledgerRes, clusterConsenter, err := r.initLedgerResourcesClusterConsenter(joinBlock)
@@ -297,14 +297,14 @@ func (r *Registrar) initAppChannels(existingChannels []string, channelsWithJoinB
 	}
 
 	// init app channels without join-blocks
-	for _, channelID := range existingChannels {
-		if _, withJoinBlock := channelsWithJoinBlock[channelID]; withJoinBlock {
+	for _, channel := range existingChannels {
+		if _, withJoinBlock := channelsWithJoinBlock[channel.ID]; withJoinBlock {
 			continue // Skip channels with join-blocks, since they were already initialized above.
 		}
 
-		rl, err := r.ledgerFactory.GetOrCreate(channelID, cl.Blockmatrix)
+		rl, err := r.ledgerFactory.GetOrCreate(channel.ID, channel.LedgerType)
 		if err != nil {
-			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channelID, err)
+			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channel, err)
 		}
 
 		configBlock := ConfigBlockOrPanic(rl)
@@ -336,13 +336,13 @@ func (r *Registrar) initAppChannels(existingChannels []string, channelsWithJoinB
 		if isMember {
 			chainSupport, err := newChainSupport(r, ledgerRes, r.consenters, r.signer, r.blockcutterMetrics, r.bccsp)
 			if err != nil {
-				logger.Panicf("Failed to create chain support for channel '%s', error: %s", channelID, err)
+				logger.Panicf("Failed to create chain support for channel '%s', error: %s", channel, err)
 			}
-			r.chains[channelID] = chainSupport
+			r.chains[channel.ID] = chainSupport
 		} else {
-			_, _, err := r.createFollower(ledgerRes, clusterConsenter, nil, channelID)
+			_, _, err := r.createFollower(ledgerRes, clusterConsenter, nil, channel.ID)
 			if err != nil {
-				logger.Panicf("Failed to create follower for channel '%s', error: %s", channelID, err)
+				logger.Panicf("Failed to create follower for channel '%s', error: %s", channel, err)
 			}
 		}
 	}
@@ -352,14 +352,14 @@ func (r *Registrar) initAppChannels(existingChannels []string, channelsWithJoinB
 // This implies that the channel participation API is not used for joins (channel creation). Therefore, there are no
 // join-blocks, and follower.Chain(s) are never created. The call to newChainSupport creates a consensus.Chain of the
 // appropriate type.
-func (r *Registrar) initAppChannelsWhenSystemChannelExists(existingChannels []string) {
-	for _, channelID := range existingChannels {
-		if channelID == r.systemChannelID {
+func (r *Registrar) initAppChannelsWhenSystemChannelExists(existingChannels []blockledger.ChannelInfo) {
+	for _, channel := range existingChannels {
+		if channel.ID == r.systemChannelID {
 			continue // Skip system channel
 		}
-		rl, err := r.ledgerFactory.GetOrCreate(channelID, cl.Blockmatrix)
+		rl, err := r.ledgerFactory.GetOrCreate(channel.ID, channel.LedgerType)
 		if err != nil {
-			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channelID, err)
+			logger.Panicf("Ledger factory reported channelID %s but could not retrieve it: %s", channel, err)
 		}
 
 		configTxEnv := configTx(rl)
@@ -373,9 +373,9 @@ func (r *Registrar) initAppChannelsWhenSystemChannelExists(existingChannels []st
 
 		chainSupport, err := newChainSupport(r, ledgerRes, r.consenters, r.signer, r.blockcutterMetrics, r.bccsp)
 		if err != nil {
-			logger.Panicf("Failed to create chain support for channel '%s', error: %s", channelID, err)
+			logger.Panicf("Failed to create chain support for channel '%s', error: %s", channel, err)
 		}
-		r.chains[channelID] = chainSupport
+		r.chains[channel.ID] = chainSupport
 	}
 }
 
@@ -508,7 +508,8 @@ func (r *Registrar) newLedgerResources(configTx *cb.Envelope) (*ledgerResources,
 		return nil, errors.WithMessagef(err, "error checking bundle for channel: %s", chdr.ChannelId)
 	}
 
-	ledger, err := r.ledgerFactory.GetOrCreate(chdr.ChannelId, cl.Blockmatrix)
+	lt := bundle.ChannelConfig().Capabilities().LedgerType()
+	ledger, err := r.ledgerFactory.GetOrCreate(chdr.ChannelId, lt)
 	if err != nil {
 		return nil, errors.WithMessagef(err, "error getting ledger for channel: %s", chdr.ChannelId)
 	}
@@ -523,8 +524,8 @@ func (r *Registrar) newLedgerResources(configTx *cb.Envelope) (*ledgerResources,
 }
 
 // CreateChain makes the Registrar create a consensus.Chain with the given name.
-func (r *Registrar) CreateChain(chainName string) {
-	lf, err := r.ledgerFactory.GetOrCreate(chainName, cl.Blockmatrix)
+func (r *Registrar) CreateChain(chainName string, ledgerType cl.Type) {
+	lf, err := r.ledgerFactory.GetOrCreate(chainName, ledgerType)
 	if err != nil {
 		logger.Panicf("Failed obtaining ledger factory for %s: %v", chainName, err)
 	}
@@ -572,11 +573,11 @@ func (r *Registrar) createNewChain(configtx *cb.Envelope) *ChainSupport {
 // SwitchFollowerToChain creates a consensus.Chain from the tip of the ledger, and removes the follower.
 // It is called when a follower detects a config block that indicates cluster membership and halts, transferring
 // execution to the consensus.Chain.
-func (r *Registrar) SwitchFollowerToChain(channelID string) {
+func (r *Registrar) SwitchFollowerToChain(channelID string, ledgerType cl.Type) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	lf, err := r.ledgerFactory.GetOrCreate(channelID, cl.Blockmatrix)
+	lf, err := r.ledgerFactory.GetOrCreate(channelID, ledgerType)
 	if err != nil {
 		logger.Panicf("Failed obtaining ledger factory for channel %s: %v", channelID, err)
 	}
@@ -598,7 +599,7 @@ func (r *Registrar) SwitchFollowerToChain(channelID string) {
 // SwitchChainToFollower creates a follower.Chain from the tip of the ledger and removes the consensus.Chain.
 // It is called when an etcdraft.Chain detects it was evicted from the cluster (i.e. removed from the consenters set)
 // and halts, transferring execution to the follower.Chain.
-func (r *Registrar) SwitchChainToFollower(channelName string) {
+func (r *Registrar) SwitchChainToFollower(channelName string, ledgerType cl.Type) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -611,7 +612,7 @@ func (r *Registrar) SwitchChainToFollower(channelName string) {
 		logger.Panicf("Programming error, both a follower.Chain and a consensus.Chain exist, channel: %s", channelName)
 	}
 
-	rl, err := r.ledgerFactory.GetOrCreate(channelName, cl.Blockmatrix)
+	rl, err := r.ledgerFactory.GetOrCreate(channelName, ledgerType)
 	if err != nil {
 		logger.Panicf("Failed obtaining ledger factory for %s: %v", channelName, err)
 	}
@@ -1007,8 +1008,9 @@ func (r *Registrar) loadJoinBlocks() map[string]*cb.Block {
 	}
 
 	logger.Debug("Reconciling join-blocks and ledger by creating any missing ledger")
-	for channelID := range channelToBlockMap {
-		if _, err := r.ledgerFactory.GetOrCreate(channelID, cl.Blockmatrix); err != nil {
+	for channelID, block := range channelToBlockMap {
+		ledgerType := configtx.GetLedgerTypeFromGenesisBlock(block)
+		if _, err := r.ledgerFactory.GetOrCreate(channelID, ledgerType); err != nil {
 			logger.Panicf("Failed to create a ledger for channel: '%s', error: %s", channelID, err)
 		}
 	}
@@ -1056,7 +1058,8 @@ func (r *Registrar) removeSystemChannel() error {
 	for channel, cs := range r.chains {
 		cs.Halt()
 
-		rl, err := r.ledgerFactory.GetOrCreate(channel, cl.Blockmatrix)
+		lt := r.systemChannel.ChannelConfig().Capabilities().LedgerType()
+		rl, err := r.ledgerFactory.GetOrCreate(channel, lt)
 		if err != nil {
 			return errors.WithMessagef(err, "could not retrieve ledger for channel: %s", channel)
 		}

@@ -279,6 +279,9 @@ func (p *Peer) createChannel(
 
 	capabilitiesSupportedOrPanic(bundle)
 
+	// get ledger type from config
+	ledgerType := bundle.ChannelConfig().Capabilities().LedgerType()
+
 	channelconfig.LogSanityChecks(bundle)
 
 	gossipEventer := p.GossipService.NewConfigEventer()
@@ -334,9 +337,6 @@ func (p *Peer) createChannel(
 		ordererSource.Update(globalAddresses, orgAddresses)
 	}
 
-	// TODO put this in channel config
-	lt := commonledger.Blockmatrix
-
 	channel := &Channel{
 		ledger:         l,
 		resources:      bundle,
@@ -386,7 +386,7 @@ func (p *Peer) createChannel(
 			p.pluginMapper,
 			policies.PolicyManagerGetterFunc(p.GetPolicyManager),
 			p.CryptoProvider,
-			lt,
+			ledgerType,
 		),
 	}
 
@@ -540,20 +540,20 @@ func (p *Peer) Initialize(
 
 	for _, cid := range ledgerIds {
 		peerLogger.Infof("Loading chain %s", cid)
-		ledger, err := p.LedgerMgr.OpenLedger(cid, commonledger.Blockmatrix)
+		ledger, err := p.LedgerMgr.OpenLedger(cid.ID, cid.LedgerType)
 		if err != nil {
 			peerLogger.Errorf("Failed to load ledger %s(%+v)", cid, err)
 			peerLogger.Debugf("Error while loading ledger %s with message %s. We continue to the next ledger rather than abort.", cid, err)
 			continue
 		}
 		// Create a chain if we get a valid ledger with config block
-		err = p.createChannel(cid, ledger, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation)
+		err = p.createChannel(cid.ID, ledger, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation)
 		if err != nil {
 			peerLogger.Errorf("Failed to load chain %s(%s)", cid, err)
 			peerLogger.Debugf("Error reloading chain %s with message %s. We continue to the next chain rather than abort.", cid, err)
 			continue
 		}
 
-		p.initChannel(cid)
+		p.initChannel(cid.ID)
 	}
 }

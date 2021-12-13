@@ -79,7 +79,7 @@ func TestBlockSignature(t *testing.T) {
 	rlf, err := fileledger.New(dir, &disabled.Provider{})
 	require.NoError(t, err)
 
-	l, err := rlf.GetOrCreate("mychannel", ledger.Blockmatrix)
+	l, err := rlf.GetOrCreate("mychannel", ledger.Blockchain)
 	require.NoError(t, err)
 	lastBlock := protoutil.NewBlock(0, nil)
 	l.Append(lastBlock)

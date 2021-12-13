@@ -33,15 +33,16 @@ func (fake *MetadataValidator) ValidateConsensusMetadata(arg1 channelconfig.Orde
 		arg2 channelconfig.Orderer
 		arg3 bool
 	}{arg1, arg2, arg3})
+	stub := fake.ValidateConsensusMetadataStub
+	fakeReturns := fake.validateConsensusMetadataReturns
 	fake.recordInvocation("ValidateConsensusMetadata", []interface{}{arg1, arg2, arg3})
 	fake.validateConsensusMetadataMutex.Unlock()
-	if fake.ValidateConsensusMetadataStub != nil {
-		return fake.ValidateConsensusMetadataStub(arg1, arg2, arg3)
+	if stub != nil {
+		return stub(arg1, arg2, arg3)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.validateConsensusMetadataReturns
 	return fakeReturns.result1
 }
 

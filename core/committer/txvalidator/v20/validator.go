@@ -333,6 +333,7 @@ func (v *TxValidator) validateTx(req *blockValidationRequest, results chan<- *bl
 
 		if payload, txResult = validation.ValidateTransaction(env, v.CryptoProvider); txResult != peer.TxValidationCode_VALID {
 			// check if block matrix and try again before marking as invalid
+			// DBM validation
 			if v.LedgerType.IsBlockmatrix() {
 				logger.Debugf("performing blockmatrix validation")
 				txResult = blockmatrix.Validate(tIdx, d, req.block.Metadata, logger)

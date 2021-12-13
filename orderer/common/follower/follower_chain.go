@@ -8,6 +8,8 @@ package follower
 
 import (
 	"bytes"
+	"github.com/hyperledger/fabric/common/configtx"
+	"github.com/hyperledger/fabric/common/ledger"
 	"sync"
 	"time"
 
@@ -59,7 +61,7 @@ type BlockPullerFactory interface {
 // ChainCreator defines a function that creates a new consensus.Chain for this channel, to replace the current
 // follower.Chain. This interface is meant to be implemented by the multichannel.Registrar.
 type ChainCreator interface {
-	SwitchFollowerToChain(chainName string)
+	SwitchFollowerToChain(chainName string, ledgerType ledger.Type)
 }
 
 //go:generate counterfeiter -o mocks/channel_participation_metrics_reporter.go -fake-name ChannelParticipationMetricsReporter . ChannelParticipationMetricsReporter
@@ -123,6 +125,8 @@ type Chain struct {
 	cryptoProvider bccsp.BCCSP // Cryptographic services
 
 	channelParticipationMetricsReporter ChannelParticipationMetricsReporter
+
+	ledgerType ledger.Type
 }
 
 // NewChain constructs a follower.Chain object.
@@ -137,6 +141,11 @@ func NewChain(
 	channelParticipationMetricsReporter ChannelParticipationMetricsReporter,
 ) (*Chain, error) {
 	options.applyDefaults()
+
+	lt := ledger.Blockchain
+	if joinBlock != nil {
+		lt = configtx.GetLedgerTypeFromGenesisBlock(joinBlock)
+	}
 
 	chain := &Chain{
 		stopChan:                            make(chan struct{}),
@@ -154,6 +163,7 @@ func NewChain(
 		chainCreator:                        chainCreator,
 		cryptoProvider:                      cryptoProvider,
 		channelParticipationMetricsReporter: channelParticipationMetricsReporter,
+		ledgerType:                          lt,
 	}
 
 	if ledgerResources.Height() > 0 {
@@ -357,7 +367,7 @@ func (c *Chain) pull() error {
 	// Trigger creation of a new consensus.Chain.
 	c.logger.Info("Block pulling finished successfully, going to switch from follower to a consensus.Chain")
 	c.halt()
-	c.chainCreator.SwitchFollowerToChain(c.ledgerResources.ChannelID())
+	c.chainCreator.SwitchFollowerToChain(c.ledgerResources.ChannelID(), c.ledgerType)
 
 	return nil
 }

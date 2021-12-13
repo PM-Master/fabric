@@ -118,7 +118,7 @@ func TestStateListener(t *testing.T) {
 		t.Fatalf("Failed to create new Provider: %s", err)
 	}
 	defer provider.Close()
-	lgr, err = provider.Open(channelid, cl.Blockmatrix)
+	lgr, err = provider.Open(channelid, cl.Blockchain)
 	require.NoError(t, err)
 	defer lgr.Close()
 	require.NoError(t, err)

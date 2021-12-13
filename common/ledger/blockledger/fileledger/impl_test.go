@@ -47,7 +47,7 @@ func initialize(t *testing.T) (*testEnv, *FileLedger) {
 	p, err := New(name, &disabled.Provider{})
 	require.NoError(t, err)
 	flf := p.(*fileLedgerFactory)
-	fl, err := flf.GetOrCreate("testchannelid", cl.Blockmatrix)
+	fl, err := flf.GetOrCreate("testchannelid", cl.Blockchain)
 	require.NoError(t, err, "Error GetOrCreate channel")
 	fl.Append(genesisBlock)
 	return &testEnv{location: name, t: t, flf: flf}, fl.(*FileLedger)
@@ -150,7 +150,7 @@ func TestReinitialization(t *testing.T) {
 	// add the block to the ledger
 	ledger1.Append(b1)
 
-	fl, err := tev.flf.GetOrCreate("testchannelid", cl.Blockmatrix)
+	fl, err := tev.flf.GetOrCreate("testchannelid", cl.Blockchain)
 	ledger1, ok := fl.(*FileLedger)
 	require.NoError(t, err, "Expected to successfully get test channel")
 	require.Equal(t, 1, len(tev.flf.ChannelIDs()), "Exptected not new channel to be created")
@@ -173,7 +173,7 @@ func TestReinitialization(t *testing.T) {
 	require.Equal(t, 1, len(channels), "Should have recovered the channel")
 
 	// get the existing test channel ledger
-	ledger2, err := provider2.GetOrCreate(channels[0], cl.Blockmatrix)
+	ledger2, err := provider2.GetOrCreate(channels[0].ID, cl.Blockchain)
 	require.NoError(t, err, "Unexpected error: %s", err)
 
 	fl = ledger2.(*FileLedger)

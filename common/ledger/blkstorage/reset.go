@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric/core/ledger"
 	"io/ioutil"
 	"os"
 	"path"
@@ -180,7 +181,7 @@ func recordHeightIfGreaterThanPreviousRecording(ledgerDir string) error {
 
 // LoadPreResetHeight searches the preResetHeight files for the specified ledgers and
 // returns a map of channelname to the last recorded block height during one of the reset operations.
-func LoadPreResetHeight(blockStorageDir string, ledgerIDs []string) (map[string]uint64, error) {
+func LoadPreResetHeight(blockStorageDir string, ledgerIDs []ledger.LedgerInfo) (map[string]uint64, error) {
 	logger.Debug("Loading Pre-reset heights")
 	preResetFilesMap, err := preResetHtFiles(blockStorageDir, ledgerIDs)
 	if err != nil {
@@ -205,7 +206,7 @@ func LoadPreResetHeight(blockStorageDir string, ledgerIDs []string) (map[string]
 }
 
 // ClearPreResetHeight deletes the files that contain the last recorded reset heights for the specified ledgers
-func ClearPreResetHeight(blockStorageDir string, ledgerIDs []string) error {
+func ClearPreResetHeight(blockStorageDir string, ledgerIDs []ledger.LedgerInfo) error {
 	logger.Info("Clearing Pre-reset heights")
 	preResetFilesMap, err := preResetHtFiles(blockStorageDir, ledgerIDs)
 	if err != nil {
@@ -220,7 +221,7 @@ func ClearPreResetHeight(blockStorageDir string, ledgerIDs []string) error {
 	return nil
 }
 
-func preResetHtFiles(blockStorageDir string, ledgerIDs []string) (map[string]string, error) {
+func preResetHtFiles(blockStorageDir string, ledgerIDs []ledger.LedgerInfo) (map[string]string, error) {
 	if len(ledgerIDs) == 0 {
 		logger.Info("No active channels passed")
 		return nil, nil
@@ -237,7 +238,7 @@ func preResetHtFiles(blockStorageDir string, ledgerIDs []string) (map[string]str
 	}
 	m := map[string]string{}
 	for _, ledgerID := range ledgerIDs {
-		ledgerDir := conf.getLedgerBlockDir(ledgerID)
+		ledgerDir := conf.getLedgerBlockDir(ledgerID.ID)
 		file := path.Join(ledgerDir, fileNamePreRestHt)
 		exists, err := pathExists(file)
 		if err != nil {
@@ -246,7 +247,7 @@ func preResetHtFiles(blockStorageDir string, ledgerIDs []string) (map[string]str
 		if !exists {
 			continue
 		}
-		m[ledgerID] = file
+		m[ledgerID.ID] = file
 	}
 	return m, nil
 }

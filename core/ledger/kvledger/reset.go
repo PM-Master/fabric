@@ -9,6 +9,7 @@ package kvledger
 import (
 	"github.com/hyperledger/fabric/common/ledger/blkstorage"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
+	"github.com/hyperledger/fabric/core/ledger"
 	"github.com/pkg/errors"
 )
 
@@ -44,14 +45,14 @@ func ResetAllKVLedgers(rootFSPath string) error {
 }
 
 // LoadPreResetHeight returns the prereset height for the specified ledgers.
-func LoadPreResetHeight(rootFSPath string, ledgerIDs []string) (map[string]uint64, error) {
+func LoadPreResetHeight(rootFSPath string, ledgerIDs []ledger.LedgerInfo) (map[string]uint64, error) {
 	blockstorePath := BlockStorePath(rootFSPath)
 	logger.Infof("Loading prereset height from path [%s]", blockstorePath)
 	return blkstorage.LoadPreResetHeight(blockstorePath, ledgerIDs)
 }
 
 // ClearPreResetHeight removes the prereset height recorded in the file system for the specified ledgers.
-func ClearPreResetHeight(rootFSPath string, ledgerIDs []string) error {
+func ClearPreResetHeight(rootFSPath string, ledgerIDs []ledger.LedgerInfo) error {
 	blockstorePath := BlockStorePath(rootFSPath)
 	logger.Infof("Clearing off prereset height files from path [%s] for ledgerIDs [%#v]", blockstorePath, ledgerIDs)
 	return blkstorage.ClearPreResetHeight(blockstorePath, ledgerIDs)

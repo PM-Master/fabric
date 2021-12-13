@@ -51,7 +51,7 @@ func TestCreateLedgerFactory(t *testing.T) {
 				lf, err := createLedgerFactory(conf, &disabled.Provider{})
 				require.NoError(t, err)
 				defer os.RemoveAll(tc.ledgerDir)
-				require.Equal(t, []string{}, lf.ChannelIDs())
+				require.Equal(t, 0, len(lf.ChannelIDs()))
 			}
 		})
 	}

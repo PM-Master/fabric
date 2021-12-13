@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/configtx"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -401,8 +401,11 @@ func reuseListener(conf *localconfig.TopLevel) bool {
 // config block for the system channel. Returns nil if no system channel
 // was found.
 func extractSystemChannel(lf blockledger.Factory, bccsp bccsp.BCCSP) *cb.Block {
-	for _, cID := range lf.ChannelIDs() {
-		channelLedger, err := lf.GetOrCreate(cID, cl.Blockmatrix)
+	for _, cInfo := range lf.ChannelIDs() {
+		cID := cInfo.ID
+		lt := cInfo.LedgerType
+
+		channelLedger, err := lf.GetOrCreate(cID, lt)
 		if err != nil {
 			logger.Panicf("Failed getting channel %v's ledger: %v", cID, err)
 		}
@@ -701,7 +704,11 @@ func initializeBootstrapChannel(genesisBlock *cb.Block, lf blockledger.Factory) 
 	if err != nil {
 		logger.Fatal("Failed to parse channel ID from genesis block:", err)
 	}
-	gl, err := lf.GetOrCreate(channelID, cl.Blockmatrix)
+
+	// DBM get ledger type
+	ledgerType := configtx.GetLedgerTypeFromGenesisBlock(genesisBlock)
+
+	gl, err := lf.GetOrCreate(channelID, ledgerType)
 	if err != nil {
 		logger.Fatal("Failed to create the system channel:", err)
 	}
@@ -843,7 +850,10 @@ func initializeEtcdraftConsenter(
 	if err != nil {
 		logger.Panicf("Failed extracting system channel name from bootstrap block: %v", err)
 	}
-	systemLedger, err := lf.GetOrCreate(systemChannelName, cl.Blockmatrix)
+
+	ledgerType := configtx.GetLedgerTypeFromGenesisBlock(bootstrapBlock)
+
+	systemLedger, err := lf.GetOrCreate(systemChannelName, ledgerType)
 	if err != nil {
 		logger.Panicf("Failed obtaining system channel (%s) ledger: %v", systemChannelName, err)
 	}

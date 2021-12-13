@@ -17,6 +17,11 @@ enum Status {
     UNDER_CONSTRUCTION = 2;
 }
 
+enum LedgerType {
+    Blockchain = 0;
+    Blockmatrix = 1;
+}
+
 // BootSnapshotMetadata captures the metadata of the snapshot that was used to bootstrap the ledger
 message BootSnapshotMetadata {
     string singableMetadata = 1; // signable metadata of bootstrapping snapshot in json string
@@ -27,4 +32,5 @@ message BootSnapshotMetadata {
 message LedgerMetadata {
     Status status = 1;
     BootSnapshotMetadata boot_snapshot_metadata =2;
+    LedgerType  ledgerType = 3;
 }

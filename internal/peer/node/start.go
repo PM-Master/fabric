@@ -1306,7 +1306,7 @@ type getLedger func(string) ledger.PeerLedger
 func resetLoop(
 	resetFilter *reset,
 	preResetHeights map[string]uint64,
-	ledgerIDs []string,
+	ledgerIDs []ledger.LedgerInfo,
 	pLedger getLedger,
 	interval time.Duration,
 ) {

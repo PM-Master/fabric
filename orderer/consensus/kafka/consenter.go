@@ -11,6 +11,7 @@ import (
 	"github.com/hyperledger/fabric-lib-go/healthz"
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/metrics"
 	"github.com/hyperledger/fabric/orderer/common/localconfig"
 	"github.com/hyperledger/fabric/orderer/consensus"
@@ -26,7 +27,7 @@ type healthChecker interface {
 }
 
 // New creates a Kafka-based consenter. Called by orderer's main.go.
-func New(config localconfig.Kafka, mp metrics.Provider, healthChecker healthChecker, icr InactiveChainRegistry, mkChain func(string)) (consensus.Consenter, *Metrics) {
+func New(config localconfig.Kafka, mp metrics.Provider, healthChecker healthChecker, icr InactiveChainRegistry, mkChain func(string, ledger.Type)) (consensus.Consenter, *Metrics) {
 	if config.Verbose {
 		flogging.ActivateSpec(flogging.Global.Spec() + ":orderer.consensus.kafka.sarama=debug")
 	}
@@ -67,7 +68,7 @@ type InactiveChainRegistry interface {
 // consensus.Consenter interface --as the HandleChain contract requires-- and
 // the commonConsenter one.
 type consenterImpl struct {
-	mkChain               func(string)
+	mkChain               func(string, ledger.Type)
 	brokerConfigVal       *sarama.Config
 	tlsConfigVal          localconfig.TLS
 	retryOptionsVal       localconfig.Retry
@@ -89,7 +90,7 @@ func (consenter *consenterImpl) HandleChain(support consensus.ConsenterSupport, 
 	if consenter.inactiveChainRegistry != nil {
 		logger.Infof("This node was migrated from Kafka to Raft, skipping activation of Kafka chain")
 		consenter.inactiveChainRegistry.TrackChain(support.ChannelID(), support.Block(0), func() {
-			consenter.mkChain(support.ChannelID())
+			consenter.mkChain(support.ChannelID(), support.ChannelConfig().Capabilities().LedgerType())
 		})
 		return &inactive.Chain{Err: errors.Errorf("channel %s is not serviced by me", support.ChannelID())}, nil
 	}

@@ -11,6 +11,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
+	"github.com/hyperledger/fabric/common/configtx"
+	"github.com/hyperledger/fabric/common/ledger"
 	"time"
 
 	"github.com/hyperledger/fabric-protos-go/common"
@@ -56,7 +58,7 @@ func PullerConfigFromTopLevelConfig(
 	}
 }
 
-//go:generate mockery -dir . -name LedgerWriter -case underscore -output mocks/
+//go:generate mockery --dir . --name LedgerWriter --case underscore --output mocks/
 
 // LedgerWriter allows the caller to write blocks and inspect the height
 type LedgerWriter interface {
@@ -67,16 +69,16 @@ type LedgerWriter interface {
 	Height() uint64
 }
 
-//go:generate mockery -dir . -name LedgerFactory -case underscore -output mocks/
+//go:generate mockery --dir . --name LedgerFactory --case underscore --output mocks/
 
 // LedgerFactory retrieves or creates new ledgers by chainID
 type LedgerFactory interface {
 	// GetOrCreate gets an existing ledger (if it exists)
 	// or creates it if it does not
-	GetOrCreate(chainID string) (LedgerWriter, error)
+	GetOrCreate(chainID string, lt ledger.Type) (LedgerWriter, error)
 }
 
-//go:generate mockery -dir . -name ChannelLister -case underscore -output mocks/
+//go:generate mockery --dir . --name ChannelLister --case underscore --output mocks/
 
 // ChannelLister returns a list of channels
 type ChannelLister interface {
@@ -102,7 +104,8 @@ type Replicator struct {
 // IsReplicationNeeded returns whether replication is needed,
 // or the cluster node can resume standard boot flow.
 func (r *Replicator) IsReplicationNeeded() (bool, error) {
-	systemChannelLedger, err := r.LedgerFactory.GetOrCreate(r.SystemChannel)
+	// DBM system channel is always blockchain because it deals with channel configs and is in the orderer only
+	systemChannelLedger, err := r.LedgerFactory.GetOrCreate(r.SystemChannel, ledger.Blockchain)
 	if err != nil {
 		return false, err
 	}
@@ -135,7 +138,7 @@ func (r *Replicator) ReplicateChains() []string {
 	// Append the genesis blocks of the application channels we have into the ledger
 	for _, channels := range [][]ChannelGenesisBlock{pullHints.channelsToPull, pullHints.channelsNotToPull} {
 		for _, channel := range channels {
-			ledger, err := r.LedgerFactory.GetOrCreate(channel.ChannelName)
+			ledger, err := r.LedgerFactory.GetOrCreate(channel.ChannelName, channel.LedgerType)
 			if err != nil {
 				r.Logger.Panicf("Failed to create a ledger for channel %s: %v", channel.ChannelName, err)
 			}
@@ -153,7 +156,7 @@ func (r *Replicator) ReplicateChains() []string {
 	}
 
 	for _, channel := range pullHints.channelsToPull {
-		err := r.PullChannel(channel.ChannelName)
+		err := r.PullChannel(channel.ChannelName, channel.LedgerType)
 		if err == nil {
 			replicatedChains = append(replicatedChains, channel.ChannelName)
 		} else {
@@ -162,7 +165,7 @@ func (r *Replicator) ReplicateChains() []string {
 	}
 
 	// Last, pull the system chain.
-	if err := r.PullChannel(r.SystemChannel); err != nil && err != ErrSkipped {
+	if err := r.PullChannel(r.SystemChannel, ledger.Blockchain); err != nil && err != ErrSkipped {
 		r.Logger.Panicf("Failed pulling system channel: %v", err)
 	}
 	return replicatedChains
@@ -179,7 +182,7 @@ func (r *Replicator) discoverChannels() []ChannelGenesisBlock {
 
 // PullChannel pulls the given channel from some orderer,
 // and commits it to the ledger.
-func (r *Replicator) PullChannel(channel string) error {
+func (r *Replicator) PullChannel(channel string, lt ledger.Type) error {
 	if !r.Filter(channel) {
 		r.Logger.Infof("Channel %s shouldn't be pulled. Skipping it", channel)
 		return ErrSkipped
@@ -189,7 +192,7 @@ func (r *Replicator) PullChannel(channel string) error {
 	defer puller.Close()
 	puller.Channel = channel
 
-	ledger, err := r.LedgerFactory.GetOrCreate(channel)
+	ledger, err := r.LedgerFactory.GetOrCreate(channel, lt)
 	if err != nil {
 		r.Logger.Panicf("Failed to create a ledger for channel %s: %v", channel, err)
 	}
@@ -345,7 +348,7 @@ type PullerConfig struct {
 	MaxTotalBufferBytes int
 }
 
-//go:generate mockery -dir . -name VerifierRetriever -case underscore -output mocks/
+//go:generate mockery --dir . --name VerifierRetriever --case underscore --output mocks/
 
 // VerifierRetriever retrieves BlockVerifiers for channels.
 type VerifierRetriever interface {
@@ -412,7 +415,7 @@ func (*NoopBlockVerifier) VerifyBlockSignature(sd []*protoutil.SignedData, confi
 	return nil
 }
 
-//go:generate mockery -dir . -name ChainPuller -case underscore -output mocks/
+//go:generate mockery --dir . --name ChainPuller --case underscore --output mocks/
 
 // ChainPuller pulls blocks from a chain
 type ChainPuller interface {
@@ -519,6 +522,7 @@ func (ci *ChainInspector) Close() {
 // ChannelGenesisBlock wraps a Block and its channel name
 type ChannelGenesisBlock struct {
 	ChannelName  string
+	LedgerType   ledger.Type
 	GenesisBlock *common.Block
 }
 
@@ -563,9 +567,12 @@ func (ci *ChainInspector) Channels() []ChannelGenesisBlock {
 			continue
 		}
 
+		lt := configtx.GetLedgerTypeFromGenesisBlock(gb)
+
 		ci.Logger.Info("Block", seq, "contains channel", channel)
 		channels[channel] = ChannelGenesisBlock{
 			ChannelName:  channel,
+			LedgerType:   lt,
 			GenesisBlock: gb,
 		}
 	}

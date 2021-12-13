@@ -44,7 +44,7 @@ type ChannelExtractor interface {
 	TargetChannel(message proto.Message) string
 }
 
-//go:generate mockery -dir . -name Handler -case underscore -output ./mocks/
+//go:generate mockery --dir . --name Handler --case underscore --output ./mocks/
 
 // Handler handles Step() and Submit() requests and returns a corresponding response
 type Handler interface {
@@ -70,7 +70,7 @@ func (rm RemoteNode) String() string {
 		rm.ID, rm.Endpoint, DERtoPEM(rm.ServerTLSCert), DERtoPEM(rm.ClientTLSCert))
 }
 
-//go:generate mockery -dir . -name Communicator -case underscore -output ./mocks/
+//go:generate mockery --dir . --name Communicator --case underscore --output ./mocks/
 
 // Communicator defines communication for a consenter
 type Communicator interface {

@@ -549,7 +549,7 @@ func TestGenerateSnapshotErrors(t *testing.T) {
 	closeAndReopenLedgerProvider := func() {
 		provider.Close()
 		provider = testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
-		lgr, err = provider.Open("testLedgerid", cl.Blockmatrix)
+		lgr, err = provider.Open("testLedgerid", cl.Blockchain)
 		require.NoError(t, err)
 		kvlgr = lgr.(*kvLedger)
 	}

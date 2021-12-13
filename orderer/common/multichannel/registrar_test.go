@@ -9,6 +9,7 @@ package multichannel
 import (
 	"bytes"
 	"fmt"
+	"github.com/hyperledger/fabric/common/configtx"
 	cl "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
@@ -106,7 +107,12 @@ func newLedgerAndFactory(dir string, chainID string, genesisBlockSys *cb.Block) 
 }
 
 func newLedger(rlf blockledger.Factory, chainID string, genesisBlockSys *cb.Block) blockledger.ReadWriter {
-	rl, err := rlf.GetOrCreate(chainID, cl.Blockmatrix)
+	lt := cl.Blockchain
+	if genesisBlockSys != nil {
+		lt = configtx.GetLedgerTypeFromGenesisBlock(genesisBlockSys)
+	}
+
+	rl, err := rlf.GetOrCreate(chainID, lt)
 	if err != nil {
 		panic(err)
 	}
@@ -212,7 +218,8 @@ func TestNewRegistrar(t *testing.T) {
 		require.NoError(t, err)
 
 		for _, id := range []string{"foo", "bar"} {
-			rl, err := lf.GetOrCreate(id, cl.Blockmatrix)
+			lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockSys)
+			rl, err := lf.GetOrCreate(id, lt)
 			require.NoError(t, err)
 
 			err = rl.Append(encoder.New(confSys).GenesisBlockForChannel(id))
@@ -539,7 +546,8 @@ func TestNewRegistrarWithFileRepo(t *testing.T) {
 		require.NoError(t, err)
 
 		// create the ledger for one of the channels with a joinblock in the file repo
-		_, err = lf.GetOrCreate("my-other-cft-channel", cl.Blockmatrix)
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockAppRaft2)
+		_, err = lf.GetOrCreate("my-other-cft-channel", lt)
 		require.NoError(t, err)
 
 		config := localconfig.TopLevel{
@@ -608,7 +616,9 @@ func TestCreateChain(t *testing.T) {
 		manager := NewRegistrar(localconfig.TopLevel{}, lf, mockCrypto(), &disabled.Provider{}, cryptoProvider, nil)
 		manager.Initialize(consenters)
 
-		ledger, err := lf.GetOrCreate("mychannel", cl.Blockmatrix)
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockSys)
+
+		ledger, err := lf.GetOrCreate("mychannel", lt)
 		require.NoError(t, err)
 
 		genesisBlock := encoder.New(confSys).GenesisBlockForChannel("mychannel")
@@ -617,7 +627,7 @@ func TestCreateChain(t *testing.T) {
 		// Before creating the chain, it doesn't exist
 		require.Nil(t, manager.GetChain("mychannel"))
 		// After creating the chain, it exists
-		manager.CreateChain("mychannel")
+		manager.CreateChain("mychannel", lt)
 		chain := manager.GetChain("mychannel")
 		require.NotNil(t, chain)
 
@@ -645,7 +655,7 @@ func TestCreateChain(t *testing.T) {
 		)
 
 		// A subsequent creation, replaces the chain.
-		manager.CreateChain("mychannel")
+		manager.CreateChain("mychannel", lt)
 		chain2 := manager.GetChain("mychannel")
 		require.NotNil(t, chain2)
 		// They are not the same
@@ -998,14 +1008,17 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		registrar := NewRegistrar(config, ledgerFactory, mockCrypto(), &disabled.Provider{}, cryptoProvider, nil)
 		registrar.Initialize(mockConsenters)
 
-		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel", cl.Blockmatrix)
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockSysRaft)
+		//lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockAppRaft)
+
+		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel", lt)
 		require.NoError(t, err)
 		ledger.Append(genesisBlockAppRaft)
 
 		// Before creating the chain, it doesn't exist
 		require.Nil(t, registrar.GetChain("my-raft-channel"))
 		// After creating the chain, it exists
-		registrar.CreateChain("my-raft-channel")
+		registrar.CreateChain("my-raft-channel", lt)
 		require.NotNil(t, registrar.GetChain("my-raft-channel"))
 
 		info, err := registrar.JoinChannel("my-raft-channel", &cb.Block{}, true)
@@ -1023,14 +1036,16 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		registrar := NewRegistrar(config, ledgerFactory, mockCrypto(), &disabled.Provider{}, cryptoProvider, nil)
 		registrar.Initialize(mockConsenters)
 
-		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel", cl.Blockmatrix)
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockAppRaft)
+
+		ledger, err := ledgerFactory.GetOrCreate("my-raft-channel", lt)
 		require.NoError(t, err)
 		ledger.Append(genesisBlockAppRaft)
 
 		// Before creating the chain, it doesn't exist
 		require.Nil(t, registrar.GetChain("my-raft-channel"))
 		// After creating the chain, it exists
-		registrar.CreateChain("my-raft-channel")
+		registrar.CreateChain("my-raft-channel", lt)
 		require.NotNil(t, registrar.GetChain("my-raft-channel"))
 
 		info, err := registrar.JoinChannel("sys-channel", &cb.Block{}, false)
@@ -1228,7 +1243,7 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		newLedger(ledgerFactory, "my-raft-channel", genesisBlockAppRaft)
 
 		// Now Switch => a chain is created and the follower removed
-		require.NotPanics(t, func() { registrar.SwitchFollowerToChain("my-raft-channel") })
+		require.NotPanics(t, func() { registrar.SwitchFollowerToChain("my-raft-channel", cl.Blockchain) })
 		// Now the chain is in the chains map, the follower is gone
 		require.NotNil(t, registrar.GetChain("my-raft-channel"))
 		require.Nil(t, registrar.GetFollower("my-raft-channel"))
@@ -1287,7 +1302,8 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 
 		//Now halt and switch, as if the orderer was evicted
 		cs.Halt()
-		require.NotPanics(t, func() { registrar.SwitchChainToFollower("my-raft-channel") })
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockAppRaft)
+		require.NotPanics(t, func() { registrar.SwitchChainToFollower("my-raft-channel", lt) })
 		// Now the follower is in the followers map, the chain is gone
 		fChain := registrar.GetFollower("my-raft-channel")
 		require.NotNil(t, fChain)
@@ -1336,7 +1352,9 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		require.Equal(t, 0, len(channelList.Channels))
 		require.NotNil(t, channelList.SystemChannel)
 		require.Equal(t, "sys-raft-channel", channelList.SystemChannel.Name)
-		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel", cl.Blockmatrix)
+
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockSysRaft)
+		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel", lt)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), ledgerRW.Height(), "block was appended")
 	})
@@ -1373,7 +1391,8 @@ func TestRegistrar_JoinChannel(t *testing.T) {
 		require.Equal(t, 0, len(channelList.Channels))
 		require.NotNil(t, channelList.SystemChannel)
 		require.Equal(t, "sys-raft-channel", channelList.SystemChannel.Name)
-		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel", cl.Blockmatrix)
+		lt := configtx.GetLedgerTypeFromGenesisBlock(genesisBlockSysRaft)
+		ledgerRW, err := ledgerFactory.GetOrCreate("sys-raft-channel", lt)
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), ledgerRW.Height(), "block was not appended")
 	})
@@ -1777,12 +1796,14 @@ func generateCertificates(t *testing.T, confAppRaft *genesisconfig.Profile, tlsC
 }
 
 func createLedgerAndChain(t *testing.T, r *Registrar, lf blockledger.Factory, b *cb.Block, channel string) {
+	lt := configtx.GetLedgerTypeFromGenesisBlock(b)
+
 	require.Nil(t, r.GetChain(channel))
 	require.NotContains(t, lf.ChannelIDs(), channel)
-	ledger, err := lf.GetOrCreate(channel, cl.Blockmatrix)
+	ledger, err := lf.GetOrCreate(channel, lt)
 	require.NoError(t, err)
 	ledger.Append(b)
 	require.Contains(t, lf.ChannelIDs(), channel)
-	r.CreateChain(channel)
+	r.CreateChain(channel, lt)
 	require.NotNil(t, r.GetChain(channel))
 }

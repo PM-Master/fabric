@@ -223,7 +223,7 @@ func (m *LedgerMgr) OpenLedger(id string, ledgerType cl.Type) (ledger.PeerLedger
 }
 
 // GetLedgerIDs returns the ids of the ledgers created
-func (m *LedgerMgr) GetLedgerIDs() ([]string, error) {
+func (m *LedgerMgr) GetLedgerIDs() ([]ledger.LedgerInfo, error) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	return m.ledgerProvider.List()

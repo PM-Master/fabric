@@ -4,28 +4,32 @@ package mocks
 import (
 	"sync"
 
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/orderer/common/follower"
 )
 
 type ChainCreator struct {
-	SwitchFollowerToChainStub        func(string)
+	SwitchFollowerToChainStub        func(string, ledger.Type)
 	switchFollowerToChainMutex       sync.RWMutex
 	switchFollowerToChainArgsForCall []struct {
 		arg1 string
+		arg2 ledger.Type
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *ChainCreator) SwitchFollowerToChain(arg1 string) {
+func (fake *ChainCreator) SwitchFollowerToChain(arg1 string, arg2 ledger.Type) {
 	fake.switchFollowerToChainMutex.Lock()
 	fake.switchFollowerToChainArgsForCall = append(fake.switchFollowerToChainArgsForCall, struct {
 		arg1 string
-	}{arg1})
-	fake.recordInvocation("SwitchFollowerToChain", []interface{}{arg1})
+		arg2 ledger.Type
+	}{arg1, arg2})
+	stub := fake.SwitchFollowerToChainStub
+	fake.recordInvocation("SwitchFollowerToChain", []interface{}{arg1, arg2})
 	fake.switchFollowerToChainMutex.Unlock()
-	if fake.SwitchFollowerToChainStub != nil {
-		fake.SwitchFollowerToChainStub(arg1)
+	if stub != nil {
+		fake.SwitchFollowerToChainStub(arg1, arg2)
 	}
 }
 
@@ -35,17 +39,17 @@ func (fake *ChainCreator) SwitchFollowerToChainCallCount() int {
 	return len(fake.switchFollowerToChainArgsForCall)
 }
 
-func (fake *ChainCreator) SwitchFollowerToChainCalls(stub func(string)) {
+func (fake *ChainCreator) SwitchFollowerToChainCalls(stub func(string, ledger.Type)) {
 	fake.switchFollowerToChainMutex.Lock()
 	defer fake.switchFollowerToChainMutex.Unlock()
 	fake.SwitchFollowerToChainStub = stub
 }
 
-func (fake *ChainCreator) SwitchFollowerToChainArgsForCall(i int) string {
+func (fake *ChainCreator) SwitchFollowerToChainArgsForCall(i int) (string, ledger.Type) {
 	fake.switchFollowerToChainMutex.RLock()
 	defer fake.switchFollowerToChainMutex.RUnlock()
 	argsForCall := fake.switchFollowerToChainArgsForCall[i]
-	return argsForCall.arg1
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *ChainCreator) Invocations() map[string][][]interface{} {

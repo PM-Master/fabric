@@ -94,7 +94,7 @@ func testLedgerProvider(t *testing.T, enableHistoryDB bool) {
 		ledgerid := constructTestLedgerID(i)
 		status, _ := provider.Exists(ledgerid)
 		require.True(t, status)
-		ledger, err := provider.Open(ledgerid, cl.Blockmatrix)
+		ledger, err := provider.Open(ledgerid, cl.Blockchain)
 		require.NoError(t, err)
 		bcInfo, err := ledger.GetBlockchainInfo()
 		ledger.Close()
@@ -117,7 +117,7 @@ func testLedgerProvider(t *testing.T, enableHistoryDB bool) {
 	require.NoError(t, err, "Failed to check for ledger existence")
 	require.Equal(t, status, false)
 
-	_, err = provider.Open(constructTestLedgerID(numLedgers), cl.Blockmatrix)
+	_, err = provider.Open(constructTestLedgerID(numLedgers), cl.Blockchain)
 	require.EqualError(t, err, "cannot open ledger [ledger_000010], ledger does not exist")
 }
 
@@ -155,7 +155,7 @@ func TestLedgerMetataDataUnmarshalError(t *testing.T) {
 	_, err = provider.List()
 	require.EqualError(t, err, "error unmarshalling ledger metadata: unexpected EOF")
 
-	_, err = provider.Open(ledgerID, cl.Blockmatrix)
+	_, err = provider.Open(ledgerID, cl.Blockchain)
 	require.EqualError(t, err, "error unmarshalling ledger metadata: unexpected EOF")
 }
 
@@ -303,7 +303,8 @@ func testDeletionOfUnderConstructionLedgersAtStart(t *testing.T, enableHistoryDB
 	case false:
 		require.NoError(t,
 			idStore.createLedgerID(ledgerID, &msgs.LedgerMetadata{
-				Status: msgs.Status_UNDER_CONSTRUCTION,
+				Status:     msgs.Status_UNDER_CONSTRUCTION,
+				LedgerType: msgs.LedgerType(cl.Blockchain),
 			}),
 		)
 	case true:
@@ -402,7 +403,7 @@ func TestMultipleLedgerBasicRW(t *testing.T) {
 	defer provider2.Close()
 	ledgers = make([]lgr.PeerLedger, numLedgers)
 	for i := 0; i < numLedgers; i++ {
-		l, err := provider2.Open(constructTestLedgerID(i), cl.Blockmatrix)
+		l, err := provider2.Open(constructTestLedgerID(i), cl.Blockchain)
 		require.NoError(t, err)
 		ledgers[i] = l
 	}
@@ -502,7 +503,7 @@ func TestLedgerBackup(t *testing.T) {
 	_, err = provider.CreateFromGenesisBlock(gb)
 	require.EqualError(t, err, "ledger [TestLedger] already exists with state [ACTIVE]")
 
-	ledger, err = provider.Open(ledgerid, cl.Blockmatrix)
+	ledger, err = provider.Open(ledgerid, cl.Blockchain)
 	require.NoError(t, err)
 	defer ledger.Close()
 

@@ -12,6 +12,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"strings"
 	"sync"
@@ -946,7 +947,7 @@ func TestVerificationRegistryRegisterVerifier(t *testing.T) {
 	}
 
 	var loadCount int
-	registry.LoadVerifier = func(chain string) cluster.BlockVerifier {
+	registry.LoadVerifier = func(chain string, lt ledger.Type) cluster.BlockVerifier {
 		require.Equal(t, "mychannel", chain)
 		loadCount++
 		return verifier
@@ -955,13 +956,13 @@ func TestVerificationRegistryRegisterVerifier(t *testing.T) {
 	v := registry.RetrieveVerifier("mychannel")
 	require.Nil(t, v)
 
-	registry.RegisterVerifier("mychannel")
+	registry.RegisterVerifier("mychannel", ledger.Blockchain)
 	v = registry.RetrieveVerifier("mychannel")
 	require.Equal(t, verifier, v)
 	require.Equal(t, 1, loadCount)
 
 	// If the verifier exists, this is a no-op
-	registry.RegisterVerifier("mychannel")
+	registry.RegisterVerifier("mychannel", ledger.Blockchain)
 	require.Equal(t, 1, loadCount)
 }
 

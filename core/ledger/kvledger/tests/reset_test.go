@@ -30,10 +30,10 @@ func TestResetAllLedgers(t *testing.T) {
 	// create ledgers and pouplate with sample data
 	// Also, retrieve the genesis blocks and blockchain info for matching later
 	numLedgers := 10
-	ledgerIDs := make([]string, numLedgers)
+	ledgerIDs := make([]ledger.LedgerInfo, numLedgers)
 	for i := 0; i < numLedgers; i++ {
-		ledgerIDs[i] = fmt.Sprintf("ledger-%d", i)
-		l := env.createTestLedgerFromGenesisBlk(ledgerIDs[i])
+		ledgerIDs[i] = ledger.LedgerInfo{fmt.Sprintf("ledger-%d", i), cl.Blockchain}
+		l := env.createTestLedgerFromGenesisBlk(ledgerIDs[i].ID)
 		dataHelper.populateLedger(l)
 		dataHelper.verifyLedgerContent(l)
 		gb, err := l.lgr.GetBlockByNumber(0)
@@ -160,7 +160,7 @@ func TestResetAllLedgersWithBTL(t *testing.T) {
 	env.initLedgerMgmt()
 
 	// ensure that the reset is executed correctly
-	preResetHt, err := kvledger.LoadPreResetHeight(env.initializer.Config.RootFSPath, []string{"ledger1"})
+	preResetHt, err := kvledger.LoadPreResetHeight(env.initializer.Config.RootFSPath, []ledger.LedgerInfo{{"ledger1", cl.Blockchain}})
 	require.NoError(t, err)
 	t.Logf("preResetHt = %#v", preResetHt)
 	require.Equal(t, uint64(5), preResetHt["ledger1"])
@@ -207,11 +207,11 @@ func TestResetLedgerWithoutDroppingDBs(t *testing.T) {
 	rebuildable = rebuildableBlockIndex
 	env.verifyRebuilableDirEmpty(rebuildable)
 	env.initLedgerMgmt()
-	preResetHt, err := kvledger.LoadPreResetHeight(env.initializer.Config.RootFSPath, []string{"ledger-1"})
+	preResetHt, err := kvledger.LoadPreResetHeight(env.initializer.Config.RootFSPath, []ledger.LedgerInfo{{"ledger-1", cl.Blockchain}})
 	t.Logf("preResetHt = %#v", preResetHt)
 	require.NoError(t, err)
 	require.Equal(t, uint64(9), preResetHt["ledger-1"])
-	_, err = env.ledgerMgr.OpenLedger("ledger-1", cl.Blockmatrix)
+	_, err = env.ledgerMgr.OpenLedger("ledger-1", cl.Blockchain)
 	// populateLedger() stores 8 block in total
 	require.EqualError(t, err, "the state database [height=9] is ahead of the block store [height=1]. "+
 		"This is possible when the state database is not dropped after a ledger reset/rollback. "+

@@ -361,7 +361,7 @@ func TestInitializeBootstrapChannel(t *testing.T) {
 	bootstrapBlock := extractBootstrapBlock(bootstrapConfig)
 	initializeBootstrapChannel(bootstrapBlock, ledgerFactory)
 
-	ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockmatrix)
+	ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockchain)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), ledger.Height())
 }
@@ -449,7 +449,7 @@ func TestInitSystemChannelWithJoinBlock(t *testing.T) {
 
 		bootstrapBlock := initSystemChannelWithJoinBlock(config, cryptoProvider, ledgerFactory)
 		require.Nil(t, bootstrapBlock)
-		ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockmatrix)
+		ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockchain)
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), ledger.Height())
 	})
@@ -462,13 +462,13 @@ func TestInitSystemChannelWithJoinBlock(t *testing.T) {
 		require.NoError(t, err)
 		bootstrapBlock := initSystemChannelWithJoinBlock(config, cryptoProvider, ledgerFactory)
 		require.NotNil(t, bootstrapBlock)
-		ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockmatrix)
+		ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockchain)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), ledger.Height())
 		// Again, ledger already exists
 		bootstrapBlock = initSystemChannelWithJoinBlock(config, cryptoProvider, ledgerFactory)
 		require.NotNil(t, bootstrapBlock)
-		ledger, err = ledgerFactory.GetOrCreate("testchannelid", cl.Blockmatrix)
+		ledger, err = ledgerFactory.GetOrCreate("testchannelid", cl.Blockchain)
 		require.NoError(t, err)
 		require.Equal(t, uint64(1), ledger.Height())
 	})
@@ -484,7 +484,7 @@ func TestInitSystemChannelWithJoinBlock(t *testing.T) {
 		require.NoError(t, err)
 		bootstrapBlock := initSystemChannelWithJoinBlock(config, cryptoProvider, ledgerFactory)
 		require.NotNil(t, bootstrapBlock)
-		ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockmatrix)
+		ledger, err := ledgerFactory.GetOrCreate("testchannelid", cl.Blockchain)
 		require.NoError(t, err)
 		require.Equal(t, uint64(0), ledger.Height())
 	})
@@ -504,7 +504,7 @@ func TestExtractSystemChannel(t *testing.T) {
 	lastConf := extractSystemChannel(rlf, cryptoProvider)
 	require.Nil(t, lastConf, "no ledgers")
 
-	_, err = rlf.GetOrCreate("emptychannelid", cl.Blockmatrix)
+	_, err = rlf.GetOrCreate("emptychannelid", cl.Blockchain)
 	require.NoError(t, err)
 
 	lastConf = extractSystemChannel(rlf, cryptoProvider)
@@ -513,7 +513,7 @@ func TestExtractSystemChannel(t *testing.T) {
 	conf := genesisconfig.Load(genesisconfig.SampleInsecureSoloProfile, configtest.GetDevConfigDir())
 	conf.Consortiums = nil
 	configBlock := encoder.New(conf).GenesisBlock()
-	rl, err := rlf.GetOrCreate("appchannelid", cl.Blockmatrix)
+	rl, err := rlf.GetOrCreate("appchannelid", cl.Blockchain)
 	err = rl.Append(configBlock)
 	require.NoError(t, err)
 
@@ -522,7 +522,7 @@ func TestExtractSystemChannel(t *testing.T) {
 
 	conf = genesisconfig.Load(genesisconfig.SampleInsecureSoloProfile, configtest.GetDevConfigDir())
 	configBlock = encoder.New(conf).GenesisBlock()
-	rl, err = rlf.GetOrCreate("testchannelid", cl.Blockmatrix)
+	rl, err = rlf.GetOrCreate("testchannelid", cl.Blockchain)
 	err = rl.Append(configBlock)
 	require.NoError(t, err)
 

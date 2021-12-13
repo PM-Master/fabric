@@ -148,9 +148,14 @@ type PeerLedgerProvider interface {
 	// Exists tells whether the ledger with given id exists
 	Exists(ledgerID string) (bool, error)
 	// List lists the ids of the existing ledgers
-	List() ([]string, error)
+	List() ([]LedgerInfo, error)
 	// Close closes the PeerLedgerProvider
 	Close()
+}
+
+type LedgerInfo struct {
+	ID         string
+	LedgerType commonledger.Type
 }
 
 // PeerLedger differs from the OrdererLedger in that PeerLedger locally maintain a bitmask
