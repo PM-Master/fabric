@@ -8,6 +8,7 @@ package tests
 
 import (
 	"fmt"
+	cl "github.com/hyperledger/fabric/common/ledger"
 	"testing"
 
 	"github.com/hyperledger/fabric/core/ledger"
@@ -45,7 +46,7 @@ func TestRollbackKVLedger(t *testing.T) {
 	rebuildable := rebuildableStatedb + rebuildableBookkeeper + rebuildableConfigHistory + rebuildableHistoryDB
 	env.verifyRebuilableDirEmpty(rebuildable)
 	env.initLedgerMgmt()
-	preResetHt, err := kvledger.LoadPreResetHeight(env.initializer.Config.RootFSPath, []string{"testLedger"})
+	preResetHt, err := kvledger.LoadPreResetHeight(env.initializer.Config.RootFSPath, []ledger.LedgerInfo{{"testLedger", cl.Blockchain}})
 	require.NoError(t, err)
 	require.Equal(t, bcInfo.Height, preResetHt["testLedger"])
 	t.Logf("preResetHt = %#v", preResetHt)

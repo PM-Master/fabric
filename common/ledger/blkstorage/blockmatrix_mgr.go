@@ -128,6 +128,8 @@ func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error
 	// set the last persisted block
 	mgr.blkFilesInfo = blkfilesInfo
 
+	logger.Debug("DBM loaded blkFilesInfo", blkfilesInfo)
+
 	return err
 }
 
@@ -325,6 +327,8 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *blockmatr
 		return err
 	}
 
+	logger.Debug("DBM indexBlock", validTxs)
+
 	// key to blocknum index
 	// get keys in block
 	keys, err := blockmatrix.GetKeysInBlock(block, validTxs)
@@ -332,7 +336,12 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *blockmatr
 		return err
 	}
 
+	logger.Debug("DBM keys in block", keys)
+
 	for key, keyInfo := range keys {
+		logger.Debugf("key", key)
+		logger.Debugf("keyInfo", keyInfo)
+
 		blockNumsBytes, err := mgr.blockDB.Get(constructKeyBlockNumsKey(key.Ns(), key.Key()))
 		if err != nil {
 			return err
@@ -352,6 +361,7 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *blockmatr
 
 		// update block nums list for this key in the database
 		blockNums = append(blockNums, block.Header.Number)
+		logger.Debug("DBM key", key, "is in blocks", blockNums)
 		blockNumsBytes, err = encodeBlockNums(blockNums)
 		batch.Put(constructKeyBlockNumsKey(key.Ns(), key.Key()), blockNumsBytes)
 	}
@@ -441,8 +451,12 @@ func (mgr *blockmatrixMgr) getBlocksToRewrite(keys map[blockmatrix.EncodedNsKey]
 			}
 
 			blocks[block.Header.Number] = block
+
+			logger.Debugf("deleting from block", block.Header.Number)
 		}
 	}
+
+	logger.Debug("DBM deletedKeys", deletedKeys)
 
 	return blocks, deletedKeys, nil
 }
@@ -454,17 +468,18 @@ func (mgr *blockmatrixMgr) rewriteBlocks(
 	batch *leveldbhelper.UpdateBatch) error {
 	for _, block := range blocks {
 		// originalHash := protoutil.BlockHeaderHash(block.Header)
+		logger.Debugf("rewriting block ", block.Header.Number)
 
 		var (
 			deleted bool
 			err     error
 		)
 
-		fmt.Println("datahash", protoutil.BlockDataHash(block.Data))
+		logger.Debug("DBM original data hash", protoutil.BlockDataHash(block.Data))
 		if deleted, err = blockmatrix.RewriteBlock(block, keys); err != nil {
 			return err
 		}
-		fmt.Println("datahash2", protoutil.BlockDataHash(block.Data))
+		logger.Debug("DBM new data hash", protoutil.BlockDataHash(block.Data))
 
 		// if no key was deleted skip index update
 		if !deleted {
@@ -477,6 +492,7 @@ func (mgr *blockmatrixMgr) rewriteBlocks(
 		}
 
 		// blockNum -> blockBytes
+		logger.Debug("DBM updating block", block.Header.Number)
 		batch.Put(constructBlockNumKey(block.Header.Number), blockBytes)
 
 		// blockHash -> block num

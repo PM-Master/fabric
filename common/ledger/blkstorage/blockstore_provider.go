@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
-	"fmt"
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blockledger"
 	"os"
@@ -126,7 +125,7 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 // implements blockStoreProvider interface in factory.go
 func (p *BlockStoreProvider) Open(ledgerid string, ledgerType ledger.Type) (*BlockStore, error) {
 	if ledgerType.IsBlockmatrix() {
-		fmt.Println("DBM opening blockmatrix ledger ", ledgerid)
+		logger.Debug("DBM opening blockmatrix ledger ", ledgerid)
 		dbConf := &leveldbhelper.Conf{
 			DBPath:         p.conf.getMatrixLedgerBlockDir(ledgerid),
 			ExpectedFormat: dataFormatVersion(p.indexConfig),
@@ -146,7 +145,7 @@ func (p *BlockStoreProvider) Open(ledgerid string, ledgerType ledger.Type) (*Blo
 
 		return newBlockmatrixStore(ledgerid, p.conf, p.stats, p.indexConfig, leveldbProvider)
 	} else {
-		fmt.Println("DBM opening blockchain ledger ", ledgerid)
+		logger.Debug("DBM opening blockchain ledger ", ledgerid)
 		indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
 		return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats)
 	}

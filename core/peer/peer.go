@@ -281,6 +281,7 @@ func (p *Peer) createChannel(
 
 	// get ledger type from config
 	ledgerType := bundle.ChannelConfig().Capabilities().LedgerType()
+	fmt.Println("DBM createChannel found ledgerType: ", ledgerType)
 
 	channelconfig.LogSanityChecks(bundle)
 

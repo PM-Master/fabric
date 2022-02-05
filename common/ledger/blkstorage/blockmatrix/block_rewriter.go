@@ -1,6 +1,7 @@
 package blockmatrix
 
 import (
+	"fmt"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
@@ -20,6 +21,8 @@ func isEndorserTx(env *common.Envelope) (string, bool) {
 }
 
 func RewriteBlock(block *common.Block, keyMap map[EncodedNsKey]KeyInTx) (deleted bool, err error) {
+	fmt.Println("DBM rewriting block", block.Header.Number)
+	fmt.Println("DBM keyMap:", keyMap)
 	if len(keyMap) == 0 {
 		return false, nil
 	}
@@ -29,10 +32,12 @@ func RewriteBlock(block *common.Block, keyMap map[EncodedNsKey]KeyInTx) (deleted
 	}
 
 	for i, txBytes := range block.Data.Data {
+		fmt.Println("DBM oldData:", string(txBytes))
 		newData, err := rewriteTx(i, txBytes, keyMap, block.Metadata)
 		if err != nil {
 			return false, err
 		}
+		fmt.Println("DBM newData:", string(newData))
 
 		if !reflect.DeepEqual(txBytes, newData) {
 			deleted = true

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package capabilities
 
 import (
+	"fmt"
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/msp"
@@ -47,6 +48,7 @@ type ChannelProvider struct {
 
 // NewChannelProvider creates a channel capabilities provider.
 func NewChannelProvider(capabilities map[string]*cb.Capability) *ChannelProvider {
+	fmt.Println("DBM NewChannelProvider capabilities", capabilities)
 	cp := &ChannelProvider{}
 	cp.registry = newRegistry(cp, capabilities)
 	_, cp.v11 = capabilities[ChannelV1_1]
@@ -54,6 +56,7 @@ func NewChannelProvider(capabilities map[string]*cb.Capability) *ChannelProvider
 	_, cp.v142 = capabilities[ChannelV1_4_2]
 	_, cp.v143 = capabilities[ChannelV1_4_3]
 	_, cp.v20 = capabilities[ChannelV2_0]
+	fmt.Println("DBM blockmatrix? ", capabilities[Blockmatrix])
 	if _, ok := capabilities[Blockmatrix]; ok {
 		cp.ledgerType = ledger.Blockmatrix
 	} else {
