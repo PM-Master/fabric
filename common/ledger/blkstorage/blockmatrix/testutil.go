@@ -2,6 +2,7 @@ package blockmatrix
 
 import (
 	"crypto/sha256"
+	"fmt"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/protoutil"
 )
@@ -39,14 +40,20 @@ func CalculateRowHash(size uint64, row uint64, blocks map[uint64]*common.Block) 
 	h := sha256.New()
 	blockNums := RowBlockNumbers(size, row)
 
+	fmt.Print("DBM calculating EXPECTED hash of row", row, ": ")
 	for _, blockNum := range blockNums {
+		fmt.Print(blockNum, ", ")
 		block, ok := blocks[blockNum-1]
 		if !ok {
+			fmt.Print("-, ")
 			continue
 		}
 
-		h.Write(protoutil.BlockDataHash(block.Data))
+		hash := protoutil.BlockDataHash(block.Data)
+		fmt.Print("2hash(", block.Header.Number, ") |")
+		h.Write(hash)
 	}
+	fmt.Println(":", h.Sum(nil))
 
 	return h.Sum(nil)
 }

@@ -18,6 +18,7 @@ package ledger
 
 import (
 	"github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 )
 
 const (
@@ -43,6 +44,10 @@ func ToType(i int) Type {
 type Ledger interface {
 	// GetBlockchainInfo returns basic info about blockchain
 	GetBlockchainInfo() (*common.BlockchainInfo, error)
+	// GetBlockmatrixInfo returns the basic info about the blockmatrix if it is configured
+	GetBlockmatrixInfo() (*blockmatrix.Info, error)
+	//GetBlocksUpdatedBy returns the block numbers of the blocks that a given block updated
+	GetBlocksUpdatedBy(blockNumber uint64) ([]uint64, error)
 	// GetBlockByNumber returns block at a given height
 	// blockNumber of  math.MaxUint64 will return last block
 	GetBlockByNumber(blockNumber uint64) (*common.Block, error)

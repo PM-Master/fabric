@@ -8,7 +8,7 @@ package onboarding
 
 import (
 	"github.com/hyperledger/fabric/common/configtx"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"sync"
 	"time"
@@ -37,7 +37,7 @@ const (
 var logger = flogging.MustGetLogger("orderer.common.onboarding")
 
 type ReplicationInitiator struct {
-	RegisterChain func(chain string, lt cl.Type)
+	RegisterChain func(chain string, lt ledger.Type)
 	ChannelLister cluster.ChannelLister
 
 	verifierRetriever cluster.VerifierRetriever
@@ -170,7 +170,7 @@ func (ri *ReplicationInitiator) replicateNeededChannels(bootstrapBlock *common.B
 
 // ReplicateChains replicates the given chains with the assistance of the given last system channel config block,
 // and returns the names of the chains that were successfully replicated.
-func (ri *ReplicationInitiator) ReplicateChains(lastConfigBlock *common.Block, chains map[string]cl.Type) []string {
+func (ri *ReplicationInitiator) ReplicateChains(lastConfigBlock *common.Block, chains map[string]ledger.Type) []string {
 	ri.logger.Info("Will now replicate chains", chains)
 	wantedChannels := make(map[string]struct{})
 	for chain := range chains {
@@ -191,7 +191,7 @@ type ledgerFactory struct {
 	onBlockCommit cluster.BlockCommitFunc
 }
 
-func (lf *ledgerFactory) GetOrCreate(chainID string, ledgerType cl.Type) (cluster.LedgerWriter, error) {
+func (lf *ledgerFactory) GetOrCreate(chainID string, ledgerType ledger.Type) (cluster.LedgerWriter, error) {
 	ledger, err := lf.Factory.GetOrCreate(chainID, ledgerType)
 	if err != nil {
 		return nil, err
@@ -210,12 +210,12 @@ func (lf *ledgerFactory) GetOrCreate(chainID string, ledgerType cl.Type) (cluste
 type ChainReplicator interface {
 	// ReplicateChains replicates the given chains using the given last system channel config block.
 	// It returns the names of the chains that were successfully replicated.
-	ReplicateChains(lastConfigBlock *common.Block, chains map[string]cl.Type) []string
+	ReplicateChains(lastConfigBlock *common.Block, chains map[string]ledger.Type) []string
 }
 
 // InactiveChainReplicator tracks disabled chains and replicates them upon demand
 type InactiveChainReplicator struct {
-	registerChain                     func(chain string, lt cl.Type)
+	registerChain                     func(chain string, lt ledger.Type)
 	logger                            *flogging.FabricLogger
 	retrieveLastSysChannelConfigBlock func() *common.Block
 	replicator                        ChainReplicator
@@ -229,7 +229,7 @@ type InactiveChainReplicator struct {
 func NewInactiveChainReplicator(
 	chainReplicator ChainReplicator,
 	getSysChannelConfigBlockFunc func() *common.Block,
-	registerChainFunc func(chain string, ledgerType cl.Type),
+	registerChainFunc func(chain string, ledgerType ledger.Type),
 	replicationRefreshInterval time.Duration,
 ) *InactiveChainReplicator {
 	if replicationRefreshInterval == 0 {
@@ -334,10 +334,10 @@ func (i *InactiveChainReplicator) Stop() {
 	<-i.doneChan
 }
 
-func (i *InactiveChainReplicator) listInactiveChains() map[string]cl.Type {
+func (i *InactiveChainReplicator) listInactiveChains() map[string]ledger.Type {
 	i.lock.RLock()
 	defer i.lock.RUnlock()
-	chains := make(map[string]cl.Type)
+	chains := make(map[string]ledger.Type)
 	for chain, creation := range i.chains2CreationCallbacks {
 		lt := configtx.GetLedgerTypeFromGenesisBlock(creation.genesisBlock)
 		chains[chain] = lt
@@ -376,7 +376,7 @@ func (vl *verifierLoader) loadVerifiers() verifiersByChannel {
 	return res
 }
 
-func (vl *verifierLoader) loadVerifier(chain string, lt cl.Type) cluster.BlockVerifier {
+func (vl *verifierLoader) loadVerifier(chain string, lt ledger.Type) cluster.BlockVerifier {
 	ledger, err := vl.ledgerFactory.GetOrCreate(chain, lt)
 	if err != nil {
 		vl.logger.Panicf("Failed obtaining ledger for channel %s", chain)

@@ -8,7 +8,7 @@ package kvledger
 
 import (
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -94,7 +94,7 @@ func testLedgerProvider(t *testing.T, enableHistoryDB bool) {
 		ledgerid := constructTestLedgerID(i)
 		status, _ := provider.Exists(ledgerid)
 		require.True(t, status)
-		ledger, err := provider.Open(ledgerid, cl.Blockchain)
+		ledger, err := provider.Open(ledgerid, ledger2.Blockchain)
 		require.NoError(t, err)
 		bcInfo, err := ledger.GetBlockchainInfo()
 		ledger.Close()
@@ -117,7 +117,7 @@ func testLedgerProvider(t *testing.T, enableHistoryDB bool) {
 	require.NoError(t, err, "Failed to check for ledger existence")
 	require.Equal(t, status, false)
 
-	_, err = provider.Open(constructTestLedgerID(numLedgers), cl.Blockchain)
+	_, err = provider.Open(constructTestLedgerID(numLedgers), ledger2.Blockchain)
 	require.EqualError(t, err, "cannot open ledger [ledger_000010], ledger does not exist")
 }
 
@@ -155,7 +155,7 @@ func TestLedgerMetataDataUnmarshalError(t *testing.T) {
 	_, err = provider.List()
 	require.EqualError(t, err, "error unmarshalling ledger metadata: unexpected EOF")
 
-	_, err = provider.Open(ledgerID, cl.Blockchain)
+	_, err = provider.Open(ledgerID, ledger2.Blockchain)
 	require.EqualError(t, err, "error unmarshalling ledger metadata: unexpected EOF")
 }
 
@@ -304,7 +304,7 @@ func testDeletionOfUnderConstructionLedgersAtStart(t *testing.T, enableHistoryDB
 		require.NoError(t,
 			idStore.createLedgerID(ledgerID, &msgs.LedgerMetadata{
 				Status:     msgs.Status_UNDER_CONSTRUCTION,
-				LedgerType: msgs.LedgerType(cl.Blockchain),
+				LedgerType: msgs.LedgerType(ledger2.Blockchain),
 			}),
 		)
 	case true:
@@ -403,7 +403,7 @@ func TestMultipleLedgerBasicRW(t *testing.T) {
 	defer provider2.Close()
 	ledgers = make([]lgr.PeerLedger, numLedgers)
 	for i := 0; i < numLedgers; i++ {
-		l, err := provider2.Open(constructTestLedgerID(i), cl.Blockchain)
+		l, err := provider2.Open(constructTestLedgerID(i), ledger2.Blockchain)
 		require.NoError(t, err)
 		ledgers[i] = l
 	}
@@ -503,7 +503,7 @@ func TestLedgerBackup(t *testing.T) {
 	_, err = provider.CreateFromGenesisBlock(gb)
 	require.EqualError(t, err, "ledger [TestLedger] already exists with state [ACTIVE]")
 
-	ledger, err = provider.Open(ledgerid, cl.Blockchain)
+	ledger, err = provider.Open(ledgerid, ledger2.Blockchain)
 	require.NoError(t, err)
 	defer ledger.Close()
 

@@ -11,7 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -263,7 +263,7 @@ func (p *Provider) CreateFromSnapshot(snapshotDir string) (ledger.PeerLedger, st
 				SingableMetadata:   metadataJSONs.signableMetadata,
 				AdditionalMetadata: metadataJSONs.additionalMetadata,
 			},
-			LedgerType: msgs.LedgerType(cl.Blockchain),
+			LedgerType: msgs.LedgerType(ledger2.Blockchain),
 		},
 	); err != nil {
 		return nil, "", errors.WithMessagef(err, "error while creating ledger id")
@@ -332,7 +332,7 @@ func (p *Provider) CreateFromSnapshot(snapshotDir string) (ledger.PeerLedger, st
 		logger.Debugw("Preparing history db", "ledgerID", ledgerID)
 	}
 
-	lgr, err := p.open(ledgerID, cl.Blockchain, metadata, true)
+	lgr, err := p.open(ledgerID, ledger2.Blockchain, metadata, true)
 	if err != nil {
 		return nil, "", p.deleteUnderConstructionLedger(
 			lgr,

@@ -31,15 +31,16 @@ func (fake *IdentityDeserializerManager) Deserializer(arg1 string) (msp.Identity
 	fake.deserializerArgsForCall = append(fake.deserializerArgsForCall, struct {
 		arg1 string
 	}{arg1})
+	stub := fake.DeserializerStub
+	fakeReturns := fake.deserializerReturns
 	fake.recordInvocation("Deserializer", []interface{}{arg1})
 	fake.deserializerMutex.Unlock()
-	if fake.DeserializerStub != nil {
-		return fake.DeserializerStub(arg1)
+	if stub != nil {
+		return stub(arg1)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
 	}
-	fakeReturns := fake.deserializerReturns
 	return fakeReturns.result1, fakeReturns.result2
 }
 

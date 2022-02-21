@@ -45,6 +45,8 @@ const (
 	Qscc_GetBlockByHash     = "qscc/GetBlockByHash"
 	Qscc_GetTransactionByID = "qscc/GetTransactionByID"
 	Qscc_GetBlockByTxID     = "qscc/GetBlockByTxID"
+	Qscc_GetMatrixInfo      = "qscc/GetMatrixInfo"
+	Qscc_GetBlocksUpdatedBy = "qscc/GetBlocksUpdatedBy"
 
 	//Cscc resources
 	Cscc_JoinChain            = "cscc/JoinChain"

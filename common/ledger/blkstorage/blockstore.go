@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"fmt"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"time"
 
 	"github.com/hyperledger/fabric-protos-go/common"
@@ -69,6 +71,24 @@ func (store *BlockStore) AddBlock(block *common.Block) error {
 // GetBlockchainInfo returns the current info about blockchain
 func (store *BlockStore) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	return store.fileMgr.getBlockchainInfo(), nil
+}
+
+// GetBlockmatrixInfo returns the current info about blockchain
+func (store *BlockStore) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+	if !store.fileMgr.isBlockmatrix() {
+		return nil, fmt.Errorf("cannot call GetBlockmatrixInfo on CHAIN ledger")
+	}
+
+	return store.fileMgr.getBlockmatrixInfo(), nil
+}
+
+// GetBlockmatrixInfo returns the current info about blockchain
+func (store *BlockStore) GetBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	if !store.fileMgr.isBlockmatrix() {
+		return nil, fmt.Errorf("cannot call GetBlocksUpdatedBy on CHAIN ledger")
+	}
+
+	return store.fileMgr.getBlocksUpdatedBy(blockNum)
 }
 
 // RetrieveBlocks returns an iterator that can be used for iterating over a range of blocks

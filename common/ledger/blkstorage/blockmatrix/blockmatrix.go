@@ -5,9 +5,11 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric/protoutil"
 	"math"
+	"reflect"
 	"strings"
 )
 
@@ -118,6 +120,12 @@ func unmarshalTx(env *common.Envelope) (*marshalBundle, error) {
 
 		ccActPayls = append(ccActPayls, ccActPayl)
 
+		/*proposalPayload, err := protoutil.UnmarshalChaincodeProposalPayload(ccActPayl.ChaincodeProposalPayload)
+		if err != nil {
+			return nil, err
+		}
+		inputs = append(inputs, proposalPayload.Input)*/
+
 		responsePayload, err := protoutil.UnmarshalProposalResponsePayload(ccActPayl.Action.ProposalResponsePayload)
 		if err != nil {
 			return nil, err
@@ -224,7 +232,8 @@ func ComputeSize(blockCount uint64) uint64 {
 
 // LocateBlock returns the row and column of the block with the given block number
 func LocateBlock(blockNum uint64) (i uint64, j uint64) {
-	blockNum = blockNum + 1
+	// block num us increased to account for the genesis block which has a block number of 0 but is 1 in the matrix
+	blockNum = GetMatrixIndexForBlock(blockNum)
 	// calculate row index
 	if blockNum%2 == 0 {
 		s := uint64(math.Floor(math.Sqrt(float64(blockNum))))
@@ -342,6 +351,7 @@ func GetKeysInBlock(block *common.Block, txs map[string]bool) (map[EncodedNsKey]
 			return nil, err
 		}
 
+		// skip any transactions that are marked as invalid
 		txId, isEndorserTx := isEndorserTx(env)
 		if !txs[txId] {
 			continue
@@ -384,7 +394,7 @@ func GetKeysInBlock(block *common.Block, txs map[string]bool) (map[EncodedNsKey]
 	return keys, nil
 }
 
-func SerializeInfo(info *Info) ([]byte, error) {
+func SerializeInfo(info *blockmatrix.Info) ([]byte, error) {
 	buf := proto.NewBuffer(nil)
 	if err := buf.EncodeVarint(info.Size); err != nil {
 		return nil, err
@@ -417,8 +427,8 @@ func SerializeInfo(info *Info) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func DeserializeInfo(bytes []byte) (*Info, error) {
-	info := &Info{}
+func DeserializeInfo(bytes []byte) (*blockmatrix.Info, error) {
+	info := &blockmatrix.Info{}
 	buf := proto.NewBuffer(bytes)
 	var (
 		err          error
@@ -455,4 +465,28 @@ func DeserializeInfo(bytes []byte) (*Info, error) {
 	}
 
 	return info, nil
+}
+
+func GetMatrixIndexForBlock(blockNum uint64) uint64 {
+	return blockNum + 1
+}
+
+func GetBlockNumberForMatrixIndex(blockNum uint64) uint64 {
+	return blockNum - 1
+}
+
+func CheckValidRewrite(size uint64, prevRow, prevCol, newRow, newCol [][]byte) bool {
+	numRowChanged := 0
+	numColChanged := 0
+	for i := uint64(0); i < size; i++ {
+		if !reflect.DeepEqual(prevRow[i], newRow[i]) {
+			numRowChanged++
+			fmt.Println("row", i, "changed")
+		}
+		if !reflect.DeepEqual(prevCol[i], newCol[i]) {
+			numColChanged++
+			fmt.Println("col", i, "changed")
+		}
+	}
+	return numRowChanged == 1 && numColChanged == 1
 }

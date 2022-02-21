@@ -24,6 +24,7 @@ import (
 
 const (
 	blockNumIdxKeyPrefix        = 'n'
+	blocksRewrittenKeyPrefix    = 'r'
 	blockHashIdxKeyPrefix       = 'h'
 	txIDIdxKeyPrefix            = 't'
 	blockNumTranNumIdxKeyPrefix = 'a'
@@ -408,6 +409,11 @@ func importTxIDsFromSnapshot(
 func constructBlockNumKey(blockNum uint64) []byte {
 	blkNumBytes := util.EncodeOrderPreservingVarUint64(blockNum)
 	return append([]byte{blockNumIdxKeyPrefix}, blkNumBytes...)
+}
+
+func constructBlocksRewrittenKey(blockNum uint64) []byte {
+	blkNumBytes := util.EncodeOrderPreservingVarUint64(blockNum)
+	return append([]byte{blocksRewrittenKeyPrefix}, blkNumBytes...)
 }
 
 func constructBlockHashKey(blockHash []byte) []byte {

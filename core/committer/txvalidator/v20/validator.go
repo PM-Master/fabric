@@ -8,7 +8,7 @@ package txvalidator
 
 import (
 	"context"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	"time"
 
@@ -113,7 +113,7 @@ type TxValidator struct {
 	LedgerResources  LedgerResources
 	Dispatcher       Dispatcher
 	CryptoProvider   bccsp.BCCSP
-	LedgerType       cl.Type
+	LedgerType       ledger2.Type
 }
 
 var logger = flogging.MustGetLogger("committer.txvalidator")
@@ -142,7 +142,7 @@ func NewTxValidator(
 	pm plugin.Mapper,
 	channelPolicyManagerGetter policies.ChannelPolicyManagerGetter,
 	cryptoProvider bccsp.BCCSP,
-	ledgerType cl.Type,
+	ledgerType ledger2.Type,
 ) *TxValidator {
 	// Encapsulates interface implementation
 	pluginValidator := plugindispatcher.NewPluginValidator(pm, ler, &dynamicDeserializer{cr: cr}, &dynamicCapabilities{cr: cr}, channelPolicyManagerGetter, cor)

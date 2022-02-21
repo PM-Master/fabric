@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hyperledger/fabric/common/configtx"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"path"
 
@@ -311,7 +311,7 @@ func (p *Provider) deleteUnderConstructionLedger(ledger ledger.PeerLedger, ledge
 }
 
 // Open implements the corresponding method from interface ledger.PeerLedgerProvider
-func (p *Provider) Open(ledgerID string, lt cl.Type) (ledger.PeerLedger, error) {
+func (p *Provider) Open(ledgerID string, lt ledger2.Type) (ledger.PeerLedger, error) {
 	logger.Debugf("Open() opening kvledger: %s", ledgerID)
 	// Check the ID store to ensure that the chainId/ledgerId exists
 	ledgerMetadata, err := p.idStore.getLedgerMetadata(ledgerID)
@@ -332,7 +332,7 @@ func (p *Provider) Open(ledgerID string, lt cl.Type) (ledger.PeerLedger, error) 
 	return p.open(ledgerID, lt, bootSnapshotMetadata, false)
 }
 
-func (p *Provider) open(ledgerID string, lt cl.Type, bootSnapshotMetadata *snapshotMetadata, initializingFromSnapshot bool) (ledger.PeerLedger, error) {
+func (p *Provider) open(ledgerID string, lt ledger2.Type, bootSnapshotMetadata *snapshotMetadata, initializingFromSnapshot bool) (ledger.PeerLedger, error) {
 	// Get the block store for a chain/ledger
 	blockStore, err := p.blkStoreProvider.Open(ledgerID, lt)
 	if err != nil {
@@ -687,7 +687,7 @@ func (s *idStore) getActiveLedgerIDs() ([]ledger.LedgerInfo, error) {
 		if metadata.Status == msgs.Status_ACTIVE {
 			id := ledgerIDFromMetadataKey(itr.Key())
 			// DBM add ledger type
-			ids = append(ids, ledger.LedgerInfo{ID: id, LedgerType: cl.ToType(int(metadata.LedgerType))})
+			ids = append(ids, ledger.LedgerInfo{ID: id, LedgerType: ledger2.ToType(int(metadata.LedgerType))})
 		}
 	}
 	if err := itr.Error(); err != nil {

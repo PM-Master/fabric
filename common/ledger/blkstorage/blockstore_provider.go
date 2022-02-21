@@ -125,7 +125,7 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 // implements blockStoreProvider interface in factory.go
 func (p *BlockStoreProvider) Open(ledgerid string, ledgerType ledger.Type) (*BlockStore, error) {
 	if ledgerType.IsBlockmatrix() {
-		logger.Debug("DBM opening blockmatrix ledger ", ledgerid)
+		logger.Info("DBM opening BLOCKMATRIX ledger ", ledgerid)
 		dbConf := &leveldbhelper.Conf{
 			DBPath:         p.conf.getMatrixLedgerBlockDir(ledgerid),
 			ExpectedFormat: dataFormatVersion(p.indexConfig),

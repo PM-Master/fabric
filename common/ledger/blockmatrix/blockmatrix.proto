@@ -4,9 +4,9 @@
 
 syntax = "proto3";
 
-option go_package = "github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix";
+option go_package = "github.com/hyperledger/fabric/common/ledger/blockmatrix";
 
-package blkstorage;
+package blockmatrix;
 
 // Contains information about the block matrix ledger such as size, block count, and row/column hashes.
 message Info {

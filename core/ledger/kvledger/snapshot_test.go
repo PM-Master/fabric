@@ -10,7 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"math"
 	"os"
@@ -549,7 +549,7 @@ func TestGenerateSnapshotErrors(t *testing.T) {
 	closeAndReopenLedgerProvider := func() {
 		provider.Close()
 		provider = testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
-		lgr, err = provider.Open("testLedgerid", cl.Blockchain)
+		lgr, err = provider.Open("testLedgerid", ledger2.Blockchain)
 		require.NoError(t, err)
 		kvlgr = lgr.(*kvLedger)
 	}

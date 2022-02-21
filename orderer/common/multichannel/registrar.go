@@ -11,7 +11,7 @@ package multichannel
 
 import (
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -524,7 +524,7 @@ func (r *Registrar) newLedgerResources(configTx *cb.Envelope) (*ledgerResources,
 }
 
 // CreateChain makes the Registrar create a consensus.Chain with the given name.
-func (r *Registrar) CreateChain(chainName string, ledgerType cl.Type) {
+func (r *Registrar) CreateChain(chainName string, ledgerType ledger.Type) {
 	lf, err := r.ledgerFactory.GetOrCreate(chainName, ledgerType)
 	if err != nil {
 		logger.Panicf("Failed obtaining ledger factory for %s: %v", chainName, err)
@@ -573,7 +573,7 @@ func (r *Registrar) createNewChain(configtx *cb.Envelope) *ChainSupport {
 // SwitchFollowerToChain creates a consensus.Chain from the tip of the ledger, and removes the follower.
 // It is called when a follower detects a config block that indicates cluster membership and halts, transferring
 // execution to the consensus.Chain.
-func (r *Registrar) SwitchFollowerToChain(channelID string, ledgerType cl.Type) {
+func (r *Registrar) SwitchFollowerToChain(channelID string, ledgerType ledger.Type) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -599,7 +599,7 @@ func (r *Registrar) SwitchFollowerToChain(channelID string, ledgerType cl.Type) 
 // SwitchChainToFollower creates a follower.Chain from the tip of the ledger and removes the consensus.Chain.
 // It is called when an etcdraft.Chain detects it was evicted from the cluster (i.e. removed from the consenters set)
 // and halts, transferring execution to the follower.Chain.
-func (r *Registrar) SwitchChainToFollower(channelName string, ledgerType cl.Type) {
+func (r *Registrar) SwitchChainToFollower(channelName string, ledgerType ledger.Type) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 

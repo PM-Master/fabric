@@ -9,7 +9,7 @@ package kvledger
 import (
 	"bytes"
 	"fmt"
-	cl "github.com/hyperledger/fabric/common/ledger"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -35,7 +35,7 @@ func TestNamespacesAndCollections(t *testing.T) {
 	basePath, err := ioutil.TempDir("", "testchannelinfoprovider")
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
-	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockchain, basePath)
+	blkStoreProvider, blkStore := openBlockStorage(t, channelName, ledger2.Blockchain, basePath)
 	defer blkStoreProvider.Close()
 
 	// add genesis block and another config block so that we can retrieve MSPIDs
@@ -98,7 +98,7 @@ func TestGetAllMSPIDs(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
 
-	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockchain, basePath)
+	blkStoreProvider, blkStore := openBlockStorage(t, channelName, ledger2.Blockchain, basePath)
 	defer blkStoreProvider.Close()
 	channelInfoProvider := &channelInfoProvider{channelName, blkStore, nil}
 
@@ -176,7 +176,7 @@ func TestGetAllMSPIDs_NegativeTests(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(basePath)
 
-	blkStoreProvider, blkStore := openBlockStorage(t, channelName, cl.Blockchain, basePath)
+	blkStoreProvider, blkStore := openBlockStorage(t, channelName, ledger2.Blockchain, basePath)
 	defer blkStoreProvider.Close()
 	channelInfoProvider := &channelInfoProvider{channelName, blkStore, nil}
 
@@ -220,7 +220,7 @@ func TestGetAllMSPIDs_NegativeTests(t *testing.T) {
 	require.Contains(t, err.Error(), "leveldb: closed")
 }
 
-func openBlockStorage(t *testing.T, channelName string, ledgerType cl.Type, basePath string) (*blkstorage.BlockStoreProvider, *blkstorage.BlockStore) {
+func openBlockStorage(t *testing.T, channelName string, ledgerType ledger2.Type, basePath string) (*blkstorage.BlockStoreProvider, *blkstorage.BlockStore) {
 	blkStoreProvider, err := blkstorage.NewProvider(blkstorage.NewConf(basePath, maxBlockFileSize), &blkstorage.IndexConfig{AttrsToIndex: attrsToIndex}, &disabled.Provider{})
 	require.NoError(t, err)
 	blkStore, err := blkStoreProvider.Open(channelName, ledgerType)

@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/hyperledger/fabric/common/ledger"
-	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/msp"
 	"math"
@@ -530,6 +530,13 @@ func (mgr *blockfileMgr) getBlockmatrixInfo() *blockmatrix.Info {
 		return &blockmatrix.Info{}
 	}
 	return mgr.blockmatrixMgr.getBlockmatrixInfo()
+}
+
+func (mgr *blockfileMgr) getBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	if !mgr.isBlockmatrix() {
+		return nil, fmt.Errorf("cannot get blockmatrix info for ledger that uses blockchain")
+	}
+	return mgr.blockmatrixMgr.getBlocksUpdatedBy(blockNum)
 }
 
 func (mgr *blockfileMgr) updateBlockfilesInfo(blkfilesInfo *blockfilesInfo) {

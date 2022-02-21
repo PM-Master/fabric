@@ -1,10 +1,12 @@
 package blkstorage
 
 import (
+	"fmt"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
+	bminfo "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
@@ -22,6 +24,43 @@ func newTestBlockmatrixWrapper(env *testEnv, ledgerid string) *testBlockfileMgrW
 	return &testBlockfileMgrWrapper{env.t, blkStore.fileMgr}
 }
 
+func TestBlockRewriteSeveralBlocks(t *testing.T) {
+	env := newTestEnv(t, NewConf(testPath(), 0))
+	defer env.Cleanup()
+	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	defer blkfileMgrWrapper.close()
+
+	blocks := make([]*common.Block, 0)
+	for i := 0; i < 14; i++ {
+		env1 := createTestEnv("chain1", "cc1",
+			createRWset(t, map[string]map[string]string{"cc1": {"k1": fmt.Sprintf("v%d", i)}}))
+		env1.Signature = []byte("env1-signature")
+		block := testutil.NewBlock([]*common.Envelope{env1}, uint64(i), []byte("hash"))
+		blocks = append(blocks, block)
+	}
+
+	blkfileMgrWrapper.addBlocks(blocks)
+
+	size := blockmatrix.ComputeSize(uint64(len(blocks)))
+	r, c := blockmatrix.CalculateExpectedHashes(size, blocks...)
+	require.Equal(t, &bminfo.Info{
+		Size:         size,
+		BlockCount:   14,
+		RowHashes:    r,
+		ColumnHashes: c,
+	}, blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo())
+
+	env1 := createTestEnv("chain1", "cc1",
+		createRWset(t, map[string]map[string]string{"cc1": {"k1": ""}}))
+	env1.Signature = []byte("env1-signature")
+	block := testutil.NewBlock([]*common.Envelope{env1}, uint64(14), []byte("hash"))
+	blkfileMgrWrapper.addBlocks([]*common.Block{block})
+
+	blockNums, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlocksUpdatedBy(14)
+	require.NoError(t, err)
+	require.Equal(t, 14, len(blockNums))
+}
+
 func TestBlockRewrite(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
@@ -36,7 +75,7 @@ func TestBlockRewrite(t *testing.T) {
 	blkfileMgrWrapper.addBlocks([]*common.Block{block1})
 
 	r, c := blockmatrix.CalculateExpectedHashes(2, block1)
-	require.Equal(t, &blockmatrix.Info{
+	require.Equal(t, &bminfo.Info{
 		Size:         2,
 		BlockCount:   1,
 		RowHashes:    r,
@@ -82,7 +121,7 @@ func TestBlockRewrite(t *testing.T) {
 
 	bmInfo := blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo()
 	r, c = blockmatrix.CalculateExpectedHashes(2, block1, block2)
-	require.Equal(t, &blockmatrix.Info{
+	require.Equal(t, &bminfo.Info{
 		Size:         2,
 		BlockCount:   2,
 		RowHashes:    r,

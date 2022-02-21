@@ -7,6 +7,7 @@ import (
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
+	bmledger "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
 	"github.com/hyperledger/fabric/internal/fileutil"
@@ -80,7 +81,7 @@ func (mgr *blockmatrixMgr) initDB(ledgerID string, p *leveldbhelper.Provider) er
 }
 
 func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error {
-	info := &blockmatrix.Info{}
+	info := &bmledger.Info{}
 	bcInfo := &common.BlockchainInfo{}
 
 	infoBytes, err := db.Get(blkMtxInfoKey)
@@ -110,7 +111,7 @@ func (mgr *blockmatrixMgr) initBlockmatrixInfo(db *leveldbhelper.DBHandle) error
 			return err
 		}
 	} else {
-		info = &blockmatrix.Info{
+		info = &bmledger.Info{
 			Size:         1,
 			BlockCount:   0,
 			RowHashes:    make([][]byte, 0),
@@ -219,7 +220,7 @@ func (mgr *blockmatrixMgr) isAttributeIndexed(attribute IndexableAttr) bool {
 	return mgr.indexConfig.Contains(attribute)
 }
 
-func (mgr *blockmatrixMgr) saveBlockMatrixInfo(bmInfo *blockmatrix.Info, bcInfo *common.BlockchainInfo, saveInDB bool) error {
+func (mgr *blockmatrixMgr) saveBlockMatrixInfo(bmInfo *bmledger.Info, bcInfo *common.BlockchainInfo, saveInDB bool) error {
 	mgr.blockmatrixInfo.Store(bmInfo)
 	mgr.bcInfo.Store(bcInfo)
 
@@ -321,7 +322,9 @@ func (mgr *blockmatrixMgr) getBlockNumsForKey(ns, key string) ([]uint64, error) 
 	return decodeBlockNums(blockNumsBytes)
 }
 
-func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *blockmatrix.Info, batch *leveldbhelper.UpdateBatch) error {
+func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *bmledger.Info, batch *leveldbhelper.UpdateBatch) error {
+	// index the new block, get the valid transactions from the block
+	// only valid txs can force changes to previous txs
 	validTxs, err := mgr.indexBlock(block, batch)
 	if err != nil {
 		return err
@@ -380,7 +383,7 @@ func (mgr *blockmatrixMgr) putBlockInMatrix(block *common.Block, info *blockmatr
 	}
 
 	// update blocks that have a key that has been deleted
-	return mgr.rewriteBlocks(info, blocksToRewrite, keysToDelete, batch)
+	return mgr.rewriteBlocks(block.Header.Number, info, blocksToRewrite, keysToDelete, batch)
 }
 
 func (mgr *blockmatrixMgr) indexBlock(block *common.Block, batch *leveldbhelper.UpdateBatch) (map[string]bool, error) {
@@ -390,6 +393,7 @@ func (mgr *blockmatrixMgr) indexBlock(block *common.Block, batch *leveldbhelper.
 	}
 
 	// blockNum -> blockBytes
+	fmt.Println("block", block.Header.Number, ">", block.Data.Data[0])
 	batch.Put(constructBlockNumKey(block.Header.Number), blockBytes)
 
 	// blockHash -> block num
@@ -461,11 +465,8 @@ func (mgr *blockmatrixMgr) getBlocksToRewrite(keys map[blockmatrix.EncodedNsKey]
 	return blocks, deletedKeys, nil
 }
 
-func (mgr *blockmatrixMgr) rewriteBlocks(
-	info *blockmatrix.Info,
-	blocks map[uint64]*common.Block,
-	keys map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx,
-	batch *leveldbhelper.UpdateBatch) error {
+func (mgr *blockmatrixMgr) rewriteBlocks(blockNum uint64, info *bmledger.Info, blocks map[uint64]*common.Block, keys map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx, batch *leveldbhelper.UpdateBatch) error {
+	blocksRewritten := make([]uint64, 0)
 	for _, block := range blocks {
 		// originalHash := protoutil.BlockHeaderHash(block.Header)
 		logger.Debugf("rewriting block ", block.Header.Number)
@@ -502,33 +503,65 @@ func (mgr *blockmatrixMgr) rewriteBlocks(
 			batch.Put(constructBlockHashKey(blockHash), encodeBlockNum(block.Header.Number))
 		}
 
+		oldRows := make([][]byte, len(info.RowHashes))
+		for i, rh := range info.RowHashes {
+			oldRows[i] = make([]byte, len(rh))
+			copy(oldRows[i], rh)
+		}
+
+		oldCols := make([][]byte, len(info.ColumnHashes))
+		for i, ch := range info.ColumnHashes {
+			oldCols[i] = make([]byte, len(ch))
+			copy(oldCols[i], ch)
+		}
+
 		// update info
 		if err = mgr.updateBlockmatrixInfo(info, block); err != nil {
 			return err
 		}
+		newRows := info.RowHashes
+		newCols := info.ColumnHashes
+
+		if !blockmatrix.CheckValidRewrite(info.Size, oldRows, oldCols, newRows, newCols) {
+			return fmt.Errorf("rewrite affected more than one row and column")
+		}
+
+		blocksRewritten = append(blocksRewritten, block.Header.Number)
 	}
+
+	// index the blocks that have been rewritten
+	nums, err := encodeBlockNums(blocksRewritten)
+	if err != nil {
+		return err
+	}
+
+	batch.Put(constructBlocksRewrittenKey(blockNum), nums)
 
 	return nil
 }
 
-func (mgr *blockmatrixMgr) updateBlockmatrixInfo(info *blockmatrix.Info, block *common.Block) error {
+func (mgr *blockmatrixMgr) updateBlockmatrixInfo(info *bmledger.Info, block *common.Block) error {
 	row, col := blockmatrix.LocateBlock(block.Header.Number)
 	hash := protoutil.BlockDataHash(block.Data)
 	return mgr.updateRowColumnHashes(row, col, info, block.Header.Number, hash)
 }
 
-func (mgr *blockmatrixMgr) updateRowColumnHashes(row uint64, col uint64, info *blockmatrix.Info, blockNum uint64, dataHash []byte) error {
+func (mgr *blockmatrixMgr) updateRowColumnHashes(row uint64, col uint64, info *bmledger.Info, blockNum uint64, dataHash []byte) error {
 	var err error
-
+	fmt.Println("blockNum(not matrix index)", blockNum)
+	fmt.Println("row", row, "before", info.RowHashes[row])
 	info.RowHashes[row], err = mgr.calculateRowHash(info.Size, row, blockNum, dataHash)
 	if err != nil {
 		return err
 	}
+	fmt.Println("row", row, "after", info.RowHashes[row])
 
+	fmt.Println("col", col, "before", info.ColumnHashes[col])
 	info.ColumnHashes[col], err = mgr.calculateColumnHash(info.Size, col, blockNum, dataHash)
 	if err != nil {
 		return err
 	}
+	fmt.Println("col", col, "after", info.ColumnHashes[col])
 
 	return nil
 }
@@ -537,27 +570,39 @@ func (mgr *blockmatrixMgr) calculateRowHash(size uint64, row uint64, blockNum ui
 	h := sha256.New()
 	blocks := blockmatrix.RowBlockNumbers(size, row)
 
-	blockNum = blockNum + 1
+	// add 1 to blocknum to account for 0 based block numbers but 1 based matrix indexes
+	// block 0 on ledger is block 1 in matrix
+	blockNum = blockmatrix.GetMatrixIndexForBlock(blockNum)
+
+	fmt.Print("DBM calculating hash of row", row, ": ")
 
 	for _, n := range blocks {
+		fmt.Print(n, ", ")
 		hash := make([]byte, 0)
 		if n == blockNum {
+			fmt.Print("hash(", dataHash, ") |")
 			hash = dataHash
 		} else {
-			// add 1 to blocknum to account for 0 based block numbers but 1 based matrix indexes
-			// block 0 on ledger is block 1 in matrix
+			// the block at the nth index has a number in the header of n-1
+			n = blockmatrix.GetBlockNumberForMatrixIndex(n)
 			block, ok, err := mgr.fetchBlock(n)
 			if !ok {
+				fmt.Print("-, ")
+				if err != nil {
+					fmt.Println(err)
+				}
 				continue
 			} else if err != nil {
 				return nil, err
 			}
 
 			hash = protoutil.BlockDataHash(block.Data)
+			fmt.Print("1hash(", block.Header.Number, ") |")
 		}
 
 		h.Write(hash)
 	}
+	fmt.Println(":", h.Sum(nil))
 
 	return h.Sum(nil), nil
 }
@@ -566,15 +611,14 @@ func (mgr *blockmatrixMgr) calculateColumnHash(size uint64, col uint64, blockNum
 	h := sha256.New()
 	blocks := blockmatrix.ColumnBlockNumbers(size, col)
 
-	blockNum = blockNum + 1
+	blockNum = blockmatrix.GetMatrixIndexForBlock(blockNum)
 
 	for _, n := range blocks {
 		hash := make([]byte, 0)
 		if n == blockNum {
 			hash = dataHash
 		} else {
-			// add 1 to blocknum to account for 0 based block numbers but 1 based matrix indexes
-			// block 0 on ledger is block 1 in matrix
+			n = blockmatrix.GetBlockNumberForMatrixIndex(n)
 			block, ok, err := mgr.fetchBlock(n)
 			if !ok {
 				continue
@@ -776,8 +820,17 @@ func (mgr *blockmatrixMgr) retrieveTransactionByBlockNumTranNum(blockNum uint64,
 	return protoutil.GetEnvelopeFromBlock(txBytes)
 }
 
-func (mgr *blockmatrixMgr) getBlockmatrixInfo() *blockmatrix.Info {
-	return mgr.blockmatrixInfo.Load().(*blockmatrix.Info)
+func (mgr *blockmatrixMgr) getBlockmatrixInfo() *bmledger.Info {
+	return mgr.blockmatrixInfo.Load().(*bmledger.Info)
+}
+
+func (mgr *blockmatrixMgr) getBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	bytes, err := mgr.blockDB.Get(constructBlocksRewrittenKey(blockNum))
+	if err != nil {
+		return nil, err
+	}
+
+	return decodeBlockNums(bytes)
 }
 
 func (mgr *blockmatrixMgr) getBlockchainInfo() *common.BlockchainInfo {
@@ -804,7 +857,7 @@ func (mgr *blockmatrixMgr) updateBlockchainInfo(latestBlockHash []byte, latestBl
 	mgr.bcInfo.Store(newBCInfo)
 }
 
-func updateBlockmatrixSize(newSize uint64, blockmatrixInfo *blockmatrix.Info) {
+func updateBlockmatrixSize(newSize uint64, blockmatrixInfo *bmledger.Info) {
 	blockmatrixInfo.Size = newSize
 
 	h := sha256.New()
@@ -851,11 +904,10 @@ func encodeBlockNums(blockNums []uint64) ([]byte, error) {
 }
 
 func (mgr *blockmatrixMgr) fetchBlock(blockNum uint64) (*common.Block, bool, error) {
-	blockBytes, err := mgr.blockDB.Get(encodeBlockNum(blockNum))
+	blockBytes, err := mgr.blockDB.Get(constructBlockNumKey(blockNum))
 	if err != nil {
 		return nil, false, err
 	} else if blockBytes == nil {
-		logger.Debug("DBM fetchBlock blockBytes is nil for ", blockNum)
 		return nil, false, nil
 	}
 
@@ -863,6 +915,7 @@ func (mgr *blockmatrixMgr) fetchBlock(blockNum uint64) (*common.Block, bool, err
 	if err != nil {
 		return nil, true, err
 	}
+
 	return block, true, nil
 }
 
