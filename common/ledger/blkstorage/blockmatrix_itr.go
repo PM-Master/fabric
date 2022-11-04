@@ -1,8 +1,9 @@
 package blkstorage
 
 import (
-	"github.com/hyperledger/fabric/common/ledger"
 	"sync"
+
+	"github.com/hyperledger/fabric/common/ledger"
 )
 
 type blockmatrixItr struct {

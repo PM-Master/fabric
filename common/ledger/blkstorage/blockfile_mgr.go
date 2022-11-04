@@ -9,13 +9,14 @@ package blkstorage
 import (
 	"bytes"
 	"fmt"
+	"math"
+	"sync"
+	"sync/atomic"
+
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/msp"
-	"math"
-	"sync"
-	"sync/atomic"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/proto"

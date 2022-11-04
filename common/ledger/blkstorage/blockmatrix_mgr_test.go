@@ -2,8 +2,15 @@ package blkstorage
 
 import (
 	"fmt"
+	"os"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/stretchr/testify/require"
+
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	bminfo "github.com/hyperledger/fabric/common/ledger/blockmatrix"
@@ -11,11 +18,6 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
-	"github.com/stretchr/testify/require"
-	"os"
-	"sync"
-	"testing"
-	"time"
 )
 
 func newTestBlockmatrixWrapper(env *testEnv, ledgerid string) *testBlockfileMgrWrapper {
@@ -375,11 +377,11 @@ func TestMatrixBlockfileMgrGetTxByIdDuplicateTxid(t *testing.T) {
 	blk, _ = blkFileMgr.retrieveBlockByTxID("txid-3")
 	require.Equal(t, block2, blk)
 
-	validationCode, _ := blkFileMgr.retrieveTxValidationCodeByTxID("txid-1")
+	validationCode, _, _ := blkFileMgr.retrieveTxValidationCodeByTxID("txid-1")
 	require.Equal(t, peer.TxValidationCode_VALID, validationCode)
-	validationCode, _ = blkFileMgr.retrieveTxValidationCodeByTxID("txid-2")
+	validationCode, _, _ = blkFileMgr.retrieveTxValidationCodeByTxID("txid-2")
 	require.Equal(t, peer.TxValidationCode_INVALID_OTHER_REASON, validationCode)
-	validationCode, _ = blkFileMgr.retrieveTxValidationCodeByTxID("txid-3")
+	validationCode, _, _ = blkFileMgr.retrieveTxValidationCodeByTxID("txid-3")
 	require.Equal(t, peer.TxValidationCode_VALID, validationCode)
 
 	// though we do not expose an API for retrieving all the txs by same id but we may in future

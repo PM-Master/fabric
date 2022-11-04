@@ -9,10 +9,11 @@ package kvledger
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"

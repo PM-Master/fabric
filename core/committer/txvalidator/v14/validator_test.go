@@ -9,12 +9,13 @@ package txvalidator_test
 import (
 	"errors"
 	"fmt"
-	bmledger "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"testing"
 	"time"
+
+	bmledger "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset"

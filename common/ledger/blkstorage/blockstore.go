@@ -8,8 +8,9 @@ package blkstorage
 
 import (
 	"fmt"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"time"
+
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"

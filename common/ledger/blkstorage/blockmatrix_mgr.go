@@ -3,9 +3,16 @@ package blkstorage
 import (
 	"crypto/sha256"
 	"fmt"
+	"math"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/pkg/errors"
+
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	bmledger "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
@@ -13,11 +20,6 @@ import (
 	"github.com/hyperledger/fabric/internal/fileutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
-	"github.com/pkg/errors"
-	"math"
-	"path/filepath"
-	"sync"
-	"sync/atomic"
 )
 
 const keyToBlockNumsKey = 'k'
