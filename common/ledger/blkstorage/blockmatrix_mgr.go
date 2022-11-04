@@ -708,12 +708,12 @@ func (mgr *blockmatrixMgr) retrieveBlockByHash(blockHash []byte) (*common.Block,
 	return mgr.retrieveBlockByNumber(blockNum)
 }
 
-func (mgr *blockmatrixMgr) retrieveTxValidationCodeByTxID(txID string) (peer.TxValidationCode, error) {
+func (mgr *blockmatrixMgr) retrieveTxValidationCodeByTxID(txID string) (peer.TxValidationCode, uint64, error) {
 	v, err := mgr.getTxIDIndex(txID)
 	if err != nil {
-		return peer.TxValidationCode(-1), err
+		return peer.TxValidationCode(-1), 0, err
 	}
-	return peer.TxValidationCode(v.validationCode), nil
+	return peer.TxValidationCode(v.validationCode), v.blockNum, nil
 }
 
 func (mgr *blockmatrixMgr) getTxIDIndex(txID string) (*txIndex, error) {
