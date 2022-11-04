@@ -87,6 +87,8 @@ func newDefaultACLProvider(policyChecker policy.PolicyChecker) defaultACLProvide
 	d.cResourcePolicyMap[resources.Qscc_GetBlockByHash] = CHANNELREADERS
 	d.cResourcePolicyMap[resources.Qscc_GetTransactionByID] = CHANNELREADERS
 	d.cResourcePolicyMap[resources.Qscc_GetBlockByTxID] = CHANNELREADERS
+	d.cResourcePolicyMap[resources.Qscc_GetMatrixInfo] = CHANNELREADERS
+	d.cResourcePolicyMap[resources.Qscc_GetBlocksUpdatedBy] = CHANNELREADERS
 
 	//--------------- CSCC resources -----------
 	//p resources (implemented by the chaincode currently)

@@ -4,6 +4,7 @@ package mocks
 import (
 	"sync"
 
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/msp"
 )
 
@@ -17,6 +18,16 @@ type ChannelCapabilities struct {
 	}
 	consensusTypeMigrationReturnsOnCall map[int]struct {
 		result1 bool
+	}
+	LedgerTypeStub        func() ledger.Type
+	ledgerTypeMutex       sync.RWMutex
+	ledgerTypeArgsForCall []struct {
+	}
+	ledgerTypeReturns struct {
+		result1 ledger.Type
+	}
+	ledgerTypeReturnsOnCall map[int]struct {
+		result1 ledger.Type
 	}
 	MSPVersionStub        func() msp.MSPVersion
 	mSPVersionMutex       sync.RWMutex
@@ -57,15 +68,16 @@ func (fake *ChannelCapabilities) ConsensusTypeMigration() bool {
 	ret, specificReturn := fake.consensusTypeMigrationReturnsOnCall[len(fake.consensusTypeMigrationArgsForCall)]
 	fake.consensusTypeMigrationArgsForCall = append(fake.consensusTypeMigrationArgsForCall, struct {
 	}{})
+	stub := fake.ConsensusTypeMigrationStub
+	fakeReturns := fake.consensusTypeMigrationReturns
 	fake.recordInvocation("ConsensusTypeMigration", []interface{}{})
 	fake.consensusTypeMigrationMutex.Unlock()
-	if fake.ConsensusTypeMigrationStub != nil {
-		return fake.ConsensusTypeMigrationStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.consensusTypeMigrationReturns
 	return fakeReturns.result1
 }
 
@@ -104,20 +116,74 @@ func (fake *ChannelCapabilities) ConsensusTypeMigrationReturnsOnCall(i int, resu
 	}{result1}
 }
 
+func (fake *ChannelCapabilities) LedgerType() ledger.Type {
+	fake.ledgerTypeMutex.Lock()
+	ret, specificReturn := fake.ledgerTypeReturnsOnCall[len(fake.ledgerTypeArgsForCall)]
+	fake.ledgerTypeArgsForCall = append(fake.ledgerTypeArgsForCall, struct {
+	}{})
+	stub := fake.LedgerTypeStub
+	fakeReturns := fake.ledgerTypeReturns
+	fake.recordInvocation("LedgerType", []interface{}{})
+	fake.ledgerTypeMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *ChannelCapabilities) LedgerTypeCallCount() int {
+	fake.ledgerTypeMutex.RLock()
+	defer fake.ledgerTypeMutex.RUnlock()
+	return len(fake.ledgerTypeArgsForCall)
+}
+
+func (fake *ChannelCapabilities) LedgerTypeCalls(stub func() ledger.Type) {
+	fake.ledgerTypeMutex.Lock()
+	defer fake.ledgerTypeMutex.Unlock()
+	fake.LedgerTypeStub = stub
+}
+
+func (fake *ChannelCapabilities) LedgerTypeReturns(result1 ledger.Type) {
+	fake.ledgerTypeMutex.Lock()
+	defer fake.ledgerTypeMutex.Unlock()
+	fake.LedgerTypeStub = nil
+	fake.ledgerTypeReturns = struct {
+		result1 ledger.Type
+	}{result1}
+}
+
+func (fake *ChannelCapabilities) LedgerTypeReturnsOnCall(i int, result1 ledger.Type) {
+	fake.ledgerTypeMutex.Lock()
+	defer fake.ledgerTypeMutex.Unlock()
+	fake.LedgerTypeStub = nil
+	if fake.ledgerTypeReturnsOnCall == nil {
+		fake.ledgerTypeReturnsOnCall = make(map[int]struct {
+			result1 ledger.Type
+		})
+	}
+	fake.ledgerTypeReturnsOnCall[i] = struct {
+		result1 ledger.Type
+	}{result1}
+}
+
 func (fake *ChannelCapabilities) MSPVersion() msp.MSPVersion {
 	fake.mSPVersionMutex.Lock()
 	ret, specificReturn := fake.mSPVersionReturnsOnCall[len(fake.mSPVersionArgsForCall)]
 	fake.mSPVersionArgsForCall = append(fake.mSPVersionArgsForCall, struct {
 	}{})
+	stub := fake.MSPVersionStub
+	fakeReturns := fake.mSPVersionReturns
 	fake.recordInvocation("MSPVersion", []interface{}{})
 	fake.mSPVersionMutex.Unlock()
-	if fake.MSPVersionStub != nil {
-		return fake.MSPVersionStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.mSPVersionReturns
 	return fakeReturns.result1
 }
 
@@ -161,15 +227,16 @@ func (fake *ChannelCapabilities) OrgSpecificOrdererEndpoints() bool {
 	ret, specificReturn := fake.orgSpecificOrdererEndpointsReturnsOnCall[len(fake.orgSpecificOrdererEndpointsArgsForCall)]
 	fake.orgSpecificOrdererEndpointsArgsForCall = append(fake.orgSpecificOrdererEndpointsArgsForCall, struct {
 	}{})
+	stub := fake.OrgSpecificOrdererEndpointsStub
+	fakeReturns := fake.orgSpecificOrdererEndpointsReturns
 	fake.recordInvocation("OrgSpecificOrdererEndpoints", []interface{}{})
 	fake.orgSpecificOrdererEndpointsMutex.Unlock()
-	if fake.OrgSpecificOrdererEndpointsStub != nil {
-		return fake.OrgSpecificOrdererEndpointsStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.orgSpecificOrdererEndpointsReturns
 	return fakeReturns.result1
 }
 
@@ -213,15 +280,16 @@ func (fake *ChannelCapabilities) Supported() error {
 	ret, specificReturn := fake.supportedReturnsOnCall[len(fake.supportedArgsForCall)]
 	fake.supportedArgsForCall = append(fake.supportedArgsForCall, struct {
 	}{})
+	stub := fake.SupportedStub
+	fakeReturns := fake.supportedReturns
 	fake.recordInvocation("Supported", []interface{}{})
 	fake.supportedMutex.Unlock()
-	if fake.SupportedStub != nil {
-		return fake.SupportedStub()
+	if stub != nil {
+		return stub()
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.supportedReturns
 	return fakeReturns.result1
 }
 
@@ -265,6 +333,8 @@ func (fake *ChannelCapabilities) Invocations() map[string][][]interface{} {
 	defer fake.invocationsMutex.RUnlock()
 	fake.consensusTypeMigrationMutex.RLock()
 	defer fake.consensusTypeMigrationMutex.RUnlock()
+	fake.ledgerTypeMutex.RLock()
+	defer fake.ledgerTypeMutex.RUnlock()
 	fake.mSPVersionMutex.RLock()
 	defer fake.mSPVersionMutex.RUnlock()
 	fake.orgSpecificOrdererEndpointsMutex.RLock()

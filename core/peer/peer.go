@@ -254,6 +254,10 @@ func (p *Peer) createChannel(
 
 	capabilitiesSupportedOrPanic(bundle)
 
+	// get ledger type from config
+	ledgerType := bundle.ChannelConfig().Capabilities().LedgerType()
+	fmt.Println("DBM createChannel found ledgerType: ", ledgerType)
+
 	channelconfig.LogSanityChecks(bundle)
 
 	gossipEventer := p.GossipService.NewConfigEventer()
@@ -330,6 +334,14 @@ func (p *Peer) createChannel(
 	)
 
 	committer := committer.NewLedgerCommitter(l)
+	// TODO DBM add getBlockmatrixInfo to committer
+	// pass that function to NewTxValidator (probably need to pass to v14 aswell)
+	// we will use it to get the row/col hash for the block being validated
+
+	// have a method called check block hash that passes the current block's *data hash*
+	// this will call a blockmatrix function in blkstorage to simulate putting the block in and calculate the row and column hash
+	// verify that the computed hash matches the hash in the blocks header which was written by the orderer
+	// we can even sign the row/col hashes as the orderer to ensure that it wasn't tampered with?
 	validator := &txvalidator.ValidationRouter{
 		CapabilityProvider: channel,
 		V14Validator: validatorv14.NewTxValidator(
@@ -355,6 +367,7 @@ func (p *Peer) createChannel(
 			p.pluginMapper,
 			policies.PolicyManagerGetterFunc(p.GetPolicyManager),
 			p.CryptoProvider,
+			ledgerType,
 		),
 	}
 

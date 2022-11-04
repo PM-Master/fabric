@@ -9,6 +9,7 @@ package kvledger
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -516,6 +517,20 @@ func (l *kvLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	defer l.blockAPIsRWLock.RUnlock()
 	bcInfo, err := l.blockStore.GetBlockchainInfo()
 	return bcInfo, err
+}
+
+// GetBlockmatrixInfo returns basic info about blockchain
+func (l *kvLedger) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+	l.blockAPIsRWLock.RLock()
+	defer l.blockAPIsRWLock.RUnlock()
+	return l.blockStore.GetBlockmatrixInfo()
+}
+
+// GetBlocksUpdatedBy returns the blocks the given block updated, if any
+func (l *kvLedger) GetBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	l.blockAPIsRWLock.RLock()
+	defer l.blockAPIsRWLock.RUnlock()
+	return l.blockStore.GetBlocksUpdatedBy(blockNum)
 }
 
 // GetBlockByNumber returns block at a given height

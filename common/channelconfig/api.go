@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package channelconfig
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"time"
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
@@ -125,6 +126,9 @@ type Orderer interface {
 type ChannelCapabilities interface {
 	// Supported returns an error if there are unknown capabilities in this channel which are required
 	Supported() error
+
+	// LedgerType returns the type od ledger for a channel.  The default type is blockchain.
+	LedgerType() ledger.Type
 
 	// MSPVersion specifies the version of the MSP this channel must understand, including the MSP types
 	// and MSP principal types.

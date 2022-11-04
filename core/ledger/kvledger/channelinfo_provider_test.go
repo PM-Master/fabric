@@ -219,11 +219,7 @@ func TestGetAllMSPIDs_NegativeTests(t *testing.T) {
 }
 
 func openBlockStorage(t *testing.T, channelName string, basePath string) (*blkstorage.BlockStoreProvider, *blkstorage.BlockStore) {
-	blkStoreProvider, err := blkstorage.NewProvider(
-		blkstorage.NewConf(basePath, maxBlockFileSize),
-		&blkstorage.IndexConfig{AttrsToIndex: attrsToIndex},
-		&disabled.Provider{},
-	)
+	blkStoreProvider, err := blkstorage.NewProvider(blkstorage.NewConf(basePath, maxBlockFileSize), &blkstorage.IndexConfig{AttrsToIndex: attrsToIndex}, &disabled.Provider{})
 	require.NoError(t, err)
 	blkStore, err := blkStoreProvider.Open(channelName)
 	require.NoError(t, err)

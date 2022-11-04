@@ -7,7 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package capabilities
 
 import (
+	"fmt"
 	cb "github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/msp"
 )
 
@@ -28,20 +30,25 @@ const (
 
 	// ChannelV2_0 is the capabilities string for standard new non-backwards compatible fabric v2.0 channel capabilities.
 	ChannelV2_0 = "V2_0"
+
+	// Blockmatrix is the capabilities string for using a blockmatrix
+	Blockmatrix = "blockmatrix"
 )
 
 // ChannelProvider provides capabilities information for channel level config.
 type ChannelProvider struct {
 	*registry
-	v11  bool
-	v13  bool
-	v142 bool
-	v143 bool
-	v20  bool
+	v11        bool
+	v13        bool
+	v142       bool
+	v143       bool
+	v20        bool
+	ledgerType ledger.Type
 }
 
 // NewChannelProvider creates a channel capabilities provider.
 func NewChannelProvider(capabilities map[string]*cb.Capability) *ChannelProvider {
+	fmt.Println("DBM NewChannelProvider capabilities", capabilities)
 	cp := &ChannelProvider{}
 	cp.registry = newRegistry(cp, capabilities)
 	_, cp.v11 = capabilities[ChannelV1_1]
@@ -49,6 +56,12 @@ func NewChannelProvider(capabilities map[string]*cb.Capability) *ChannelProvider
 	_, cp.v142 = capabilities[ChannelV1_4_2]
 	_, cp.v143 = capabilities[ChannelV1_4_3]
 	_, cp.v20 = capabilities[ChannelV2_0]
+	fmt.Println("DBM blockmatrix? ", capabilities[Blockmatrix])
+	if _, ok := capabilities[Blockmatrix]; ok {
+		cp.ledgerType = ledger.Blockmatrix
+	} else {
+		cp.ledgerType = ledger.Blockchain
+	}
 	return cp
 }
 
@@ -70,6 +83,8 @@ func (cp *ChannelProvider) HasCapability(capability string) bool {
 	case ChannelV1_3:
 		return true
 	case ChannelV1_1:
+		return true
+	case Blockmatrix:
 		return true
 	default:
 		return false

@@ -686,6 +686,7 @@ func (s *idStore) getActiveLedgerIDs() ([]string, error) {
 		}
 		if metadata.Status == msgs.Status_ACTIVE {
 			id := ledgerIDFromMetadataKey(itr.Key())
+			// DBM add ledger type
 			ids = append(ids, id)
 		}
 	}
