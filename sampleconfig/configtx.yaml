@@ -107,6 +107,7 @@ Capabilities:
         # Prior to enabling V2.0 channel capabilities, ensure that all
         # orderers and peers on a channel are at v2.0.0 or later.
         V2_0: true
+        #blockmatrix: true
 
     # Orderer capabilities apply only to the orderers, and may be safely
     # used with prior release peers.

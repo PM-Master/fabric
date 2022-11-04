@@ -1,0 +1,17 @@
+// Copyright the Hyperledger Fabric contributors. All rights reserved.
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+option go_package = "github.com/hyperledger/fabric/common/ledger/blockmatrix";
+
+package blockmatrix;
+
+// Contains information about the block matrix ledger such as size, block count, and row/column hashes.
+message Info {
+    uint64 size = 1;
+    uint64 blockCount = 2;
+    repeated bytes rowHashes = 3;
+    repeated bytes columnHashes = 4;
+}

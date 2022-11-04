@@ -9,6 +9,7 @@ package capabilities
 import (
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/pkg/errors"
 )
 
@@ -48,4 +49,12 @@ func (r *registry) Supported() error {
 		return errors.Errorf("%s capability %s is required but not supported", r.provider.Type(), capabilityName)
 	}
 	return nil
+}
+
+func (r *registry) LedgerType() ledger.Type {
+	if r.provider.HasCapability(Blockmatrix) {
+		return ledger.Blockmatrix
+	} else {
+		return ledger.Blockchain
+	}
 }

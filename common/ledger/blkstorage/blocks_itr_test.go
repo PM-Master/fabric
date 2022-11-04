@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"github.com/hyperledger/fabric/common/ledger"
 	"sync"
 	"testing"
 	"time"
@@ -137,7 +138,7 @@ func TestCloseMultipleItrsWaitForFutureBlock(t *testing.T) {
 	wg.Wait()
 }
 
-func iterateInBackground(t *testing.T, itr *blocksItr, quitAfterBlkNum uint64, wg *sync.WaitGroup, expectedBlockNums []uint64) {
+func iterateInBackground(t *testing.T, itr ledger.ResultsIterator, quitAfterBlkNum uint64, wg *sync.WaitGroup, expectedBlockNums []uint64) {
 	defer wg.Done()
 	retrievedBlkNums := []uint64{}
 	defer func() { require.Equal(t, expectedBlockNums, retrievedBlkNums) }()
@@ -157,7 +158,7 @@ func iterateInBackground(t *testing.T, itr *blocksItr, quitAfterBlkNum uint64, w
 	}
 }
 
-func testIterateAndVerify(t *testing.T, itr *blocksItr, blocks []*common.Block, readyAt int, readyChan chan<- struct{}, doneChan chan bool) {
+func testIterateAndVerify(t *testing.T, itr ledger.ResultsIterator, blocks []*common.Block, readyAt int, readyChan chan<- struct{}, doneChan chan bool) {
 	blocksIterated := 0
 	for {
 		t.Logf("blocksIterated: %v", blocksIterated)

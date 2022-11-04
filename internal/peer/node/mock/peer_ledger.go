@@ -7,6 +7,7 @@ import (
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	ledgera "github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/core/ledger"
 )
 
@@ -129,6 +130,18 @@ type PeerLedger struct {
 		result1 *common.BlockchainInfo
 		result2 error
 	}
+	GetBlockmatrixInfoStub        func() (*blockmatrix.Info, error)
+	getBlockmatrixInfoMutex       sync.RWMutex
+	getBlockmatrixInfoArgsForCall []struct {
+	}
+	getBlockmatrixInfoReturns struct {
+		result1 *blockmatrix.Info
+		result2 error
+	}
+	getBlockmatrixInfoReturnsOnCall map[int]struct {
+		result1 *blockmatrix.Info
+		result2 error
+	}
 	GetBlocksIteratorStub        func(uint64) (ledgera.ResultsIterator, error)
 	getBlocksIteratorMutex       sync.RWMutex
 	getBlocksIteratorArgsForCall []struct {
@@ -140,6 +153,19 @@ type PeerLedger struct {
 	}
 	getBlocksIteratorReturnsOnCall map[int]struct {
 		result1 ledgera.ResultsIterator
+		result2 error
+	}
+	GetBlocksUpdatedByStub        func(uint64) ([]uint64, error)
+	getBlocksUpdatedByMutex       sync.RWMutex
+	getBlocksUpdatedByArgsForCall []struct {
+		arg1 uint64
+	}
+	getBlocksUpdatedByReturns struct {
+		result1 []uint64
+		result2 error
+	}
+	getBlocksUpdatedByReturnsOnCall map[int]struct {
+		result1 []uint64
 		result2 error
 	}
 	GetConfigHistoryRetrieverStub        func() (ledger.ConfigHistoryRetriever, error)
@@ -887,6 +913,62 @@ func (fake *PeerLedger) GetBlockchainInfoReturnsOnCall(i int, result1 *common.Bl
 	}{result1, result2}
 }
 
+func (fake *PeerLedger) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+	fake.getBlockmatrixInfoMutex.Lock()
+	ret, specificReturn := fake.getBlockmatrixInfoReturnsOnCall[len(fake.getBlockmatrixInfoArgsForCall)]
+	fake.getBlockmatrixInfoArgsForCall = append(fake.getBlockmatrixInfoArgsForCall, struct {
+	}{})
+	stub := fake.GetBlockmatrixInfoStub
+	fakeReturns := fake.getBlockmatrixInfoReturns
+	fake.recordInvocation("GetBlockmatrixInfo", []interface{}{})
+	fake.getBlockmatrixInfoMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *PeerLedger) GetBlockmatrixInfoCallCount() int {
+	fake.getBlockmatrixInfoMutex.RLock()
+	defer fake.getBlockmatrixInfoMutex.RUnlock()
+	return len(fake.getBlockmatrixInfoArgsForCall)
+}
+
+func (fake *PeerLedger) GetBlockmatrixInfoCalls(stub func() (*blockmatrix.Info, error)) {
+	fake.getBlockmatrixInfoMutex.Lock()
+	defer fake.getBlockmatrixInfoMutex.Unlock()
+	fake.GetBlockmatrixInfoStub = stub
+}
+
+func (fake *PeerLedger) GetBlockmatrixInfoReturns(result1 *blockmatrix.Info, result2 error) {
+	fake.getBlockmatrixInfoMutex.Lock()
+	defer fake.getBlockmatrixInfoMutex.Unlock()
+	fake.GetBlockmatrixInfoStub = nil
+	fake.getBlockmatrixInfoReturns = struct {
+		result1 *blockmatrix.Info
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *PeerLedger) GetBlockmatrixInfoReturnsOnCall(i int, result1 *blockmatrix.Info, result2 error) {
+	fake.getBlockmatrixInfoMutex.Lock()
+	defer fake.getBlockmatrixInfoMutex.Unlock()
+	fake.GetBlockmatrixInfoStub = nil
+	if fake.getBlockmatrixInfoReturnsOnCall == nil {
+		fake.getBlockmatrixInfoReturnsOnCall = make(map[int]struct {
+			result1 *blockmatrix.Info
+			result2 error
+		})
+	}
+	fake.getBlockmatrixInfoReturnsOnCall[i] = struct {
+		result1 *blockmatrix.Info
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *PeerLedger) GetBlocksIterator(arg1 uint64) (ledgera.ResultsIterator, error) {
 	fake.getBlocksIteratorMutex.Lock()
 	ret, specificReturn := fake.getBlocksIteratorReturnsOnCall[len(fake.getBlocksIteratorArgsForCall)]
@@ -946,6 +1028,70 @@ func (fake *PeerLedger) GetBlocksIteratorReturnsOnCall(i int, result1 ledgera.Re
 	}
 	fake.getBlocksIteratorReturnsOnCall[i] = struct {
 		result1 ledgera.ResultsIterator
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *PeerLedger) GetBlocksUpdatedBy(arg1 uint64) ([]uint64, error) {
+	fake.getBlocksUpdatedByMutex.Lock()
+	ret, specificReturn := fake.getBlocksUpdatedByReturnsOnCall[len(fake.getBlocksUpdatedByArgsForCall)]
+	fake.getBlocksUpdatedByArgsForCall = append(fake.getBlocksUpdatedByArgsForCall, struct {
+		arg1 uint64
+	}{arg1})
+	stub := fake.GetBlocksUpdatedByStub
+	fakeReturns := fake.getBlocksUpdatedByReturns
+	fake.recordInvocation("GetBlocksUpdatedBy", []interface{}{arg1})
+	fake.getBlocksUpdatedByMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *PeerLedger) GetBlocksUpdatedByCallCount() int {
+	fake.getBlocksUpdatedByMutex.RLock()
+	defer fake.getBlocksUpdatedByMutex.RUnlock()
+	return len(fake.getBlocksUpdatedByArgsForCall)
+}
+
+func (fake *PeerLedger) GetBlocksUpdatedByCalls(stub func(uint64) ([]uint64, error)) {
+	fake.getBlocksUpdatedByMutex.Lock()
+	defer fake.getBlocksUpdatedByMutex.Unlock()
+	fake.GetBlocksUpdatedByStub = stub
+}
+
+func (fake *PeerLedger) GetBlocksUpdatedByArgsForCall(i int) uint64 {
+	fake.getBlocksUpdatedByMutex.RLock()
+	defer fake.getBlocksUpdatedByMutex.RUnlock()
+	argsForCall := fake.getBlocksUpdatedByArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *PeerLedger) GetBlocksUpdatedByReturns(result1 []uint64, result2 error) {
+	fake.getBlocksUpdatedByMutex.Lock()
+	defer fake.getBlocksUpdatedByMutex.Unlock()
+	fake.GetBlocksUpdatedByStub = nil
+	fake.getBlocksUpdatedByReturns = struct {
+		result1 []uint64
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *PeerLedger) GetBlocksUpdatedByReturnsOnCall(i int, result1 []uint64, result2 error) {
+	fake.getBlocksUpdatedByMutex.Lock()
+	defer fake.getBlocksUpdatedByMutex.Unlock()
+	fake.GetBlocksUpdatedByStub = nil
+	if fake.getBlocksUpdatedByReturnsOnCall == nil {
+		fake.getBlocksUpdatedByReturnsOnCall = make(map[int]struct {
+			result1 []uint64
+			result2 error
+		})
+	}
+	fake.getBlocksUpdatedByReturnsOnCall[i] = struct {
+		result1 []uint64
 		result2 error
 	}{result1, result2}
 }
@@ -1691,8 +1837,12 @@ func (fake *PeerLedger) Invocations() map[string][][]interface{} {
 	defer fake.getBlockByTxIDMutex.RUnlock()
 	fake.getBlockchainInfoMutex.RLock()
 	defer fake.getBlockchainInfoMutex.RUnlock()
+	fake.getBlockmatrixInfoMutex.RLock()
+	defer fake.getBlockmatrixInfoMutex.RUnlock()
 	fake.getBlocksIteratorMutex.RLock()
 	defer fake.getBlocksIteratorMutex.RUnlock()
+	fake.getBlocksUpdatedByMutex.RLock()
+	defer fake.getBlocksUpdatedByMutex.RUnlock()
 	fake.getConfigHistoryRetrieverMutex.RLock()
 	defer fake.getConfigHistoryRetrieverMutex.RUnlock()
 	fake.getMissingPvtDataTrackerMutex.RLock()

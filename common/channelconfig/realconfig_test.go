@@ -62,7 +62,7 @@ func TestOrgSpecificOrdererEndpoints(t *testing.T) {
 
 	t.Run("With_Capability", func(t *testing.T) {
 		conf := genesisconfig.Load(genesisconfig.SampleDevModeSoloProfile, configtest.GetDevConfigDir())
-		conf.Capabilities = map[string]bool{"V2_0": true}
+		conf.Capabilities = map[string]bool{"V2_0": true, "blockmatrix": true}
 		require.NotEmpty(t, conf.Orderer.Organizations[0].OrdererEndpoints)
 
 		cg, err := encoder.NewChannelGroup(conf)
@@ -77,5 +77,6 @@ func TestOrgSpecificOrdererEndpoints(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotEmpty(t, cc.OrdererConfig().Organizations()["SampleOrg"].Endpoints)
+		require.NoError(t, cc.Capabilities().Supported())
 	})
 }

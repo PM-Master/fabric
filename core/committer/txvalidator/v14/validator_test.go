@@ -9,6 +9,7 @@ package txvalidator_test
 import (
 	"errors"
 	"fmt"
+	bmledger "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -1493,6 +1494,16 @@ func (m *mockLedger) CommitLegacy(pvtDataAndBlock *ledger.BlockAndPvtData, commi
 func (m *mockLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	args := m.Called()
 	return args.Get(0).(*common.BlockchainInfo), nil
+}
+
+func (m *mockLedger) GetBlockmatrixInfo() (*bmledger.Info, error) {
+	args := m.Called()
+	return args.Get(0).(*bmledger.Info), nil
+}
+
+func (m *mockLedger) GetBlocksUpdatedBy(blockNumber uint64) ([]uint64, error) {
+	args := m.Called(blockNumber)
+	return args.Get(0).([]uint64), nil
 }
 
 func (m *mockLedger) GetBlockByNumber(blockNumber uint64) (*common.Block, error) {

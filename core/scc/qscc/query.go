@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-chaincode-go/shim"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/flogging"
@@ -54,6 +55,8 @@ const (
 	GetBlockByHash     string = "GetBlockByHash"
 	GetTransactionByID string = "GetTransactionByID"
 	GetBlockByTxID     string = "GetBlockByTxID"
+	GetMatrixInfo      string = "GetMatrixInfo"
+	GetBlocksUpdatedBy string = "GetBlocksUpdatedBy"
 )
 
 // Init is called once per chain when the chain is created.
@@ -96,7 +99,7 @@ func (e *LedgerQuerier) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		return shim.Error(fmt.Sprintf("Rejecting invoke of QSCC from another chaincode because of potential for deadlocks, original invocation for '%s'", name))
 	}
 
-	if fname != GetChainInfo && len(args) < 3 {
+	if fname != GetChainInfo && fname != GetMatrixInfo && len(args) < 3 {
 		return shim.Error(fmt.Sprintf("missing 3rd argument for %s", fname))
 	}
 
@@ -124,6 +127,10 @@ func (e *LedgerQuerier) Invoke(stub shim.ChaincodeStubInterface) pb.Response {
 		return getChainInfo(targetLedger)
 	case GetBlockByTxID:
 		return getBlockByTxID(targetLedger, args[2])
+	case GetMatrixInfo:
+		return getMatrixInfo(targetLedger)
+	case GetBlocksUpdatedBy:
+		return getBlocksUpdatedBy(targetLedger, args[2])
 	}
 
 	return shim.Error(fmt.Sprintf("Requested function %s not found.", fname))
@@ -204,6 +211,54 @@ func getChainInfo(vledger ledger.PeerLedger) pb.Response {
 	}
 
 	return shim.Success(bytes)
+}
+
+func getMatrixInfo(vledger ledger.PeerLedger) pb.Response {
+	binfo, err := vledger.GetBlockmatrixInfo()
+	if err != nil {
+		return shim.Error(fmt.Sprintf("Failed to get blockmatrix info with error %s", err))
+	}
+	bytes, err := protoutil.Marshal(binfo)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success(bytes)
+}
+
+func getBlocksUpdatedBy(vledger ledger.PeerLedger, number []byte) pb.Response {
+	if number == nil {
+		return shim.Error("Block number must not be nil.")
+	}
+	bnum, err := strconv.ParseUint(string(number), 10, 64)
+	if err != nil {
+		return shim.Error(fmt.Sprintf("Failed to parse block number with error %s", err))
+	}
+	blocks, err := vledger.GetBlocksUpdatedBy(bnum)
+	if err != nil {
+		return shim.Error(fmt.Sprintf("Failed to get blockmatrix info with error %s", err))
+	}
+	bytes, err := encodeBlockNums(blocks)
+	if err != nil {
+		return shim.Error(err.Error())
+	}
+
+	return shim.Success(bytes)
+}
+
+func encodeBlockNums(blockNums []uint64) ([]byte, error) {
+	buf := &proto.Buffer{}
+	if err := buf.EncodeVarint(uint64(len(blockNums))); err != nil {
+		return nil, err
+	}
+
+	for _, blockNum := range blockNums {
+		if err := buf.EncodeVarint(blockNum); err != nil {
+			return nil, err
+		}
+	}
+
+	return buf.Bytes(), nil
 }
 
 func getBlockByTxID(vledger ledger.PeerLedger, rawTxID []byte) pb.Response {

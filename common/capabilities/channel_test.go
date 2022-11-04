@@ -100,6 +100,17 @@ func TestChannelV20(t *testing.T) {
 	require.True(t, cp.OrgSpecificOrdererEndpoints())
 }
 
+func TestChannelBlockmatrix(t *testing.T) {
+	cp := NewChannelProvider(map[string]*cb.Capability{
+		ChannelV2_0:   {},
+		"blockmatrix": {},
+	})
+	require.NoError(t, cp.Supported())
+	require.True(t, cp.MSPVersion() == msp.MSPv1_4_3)
+	require.True(t, cp.ConsensusTypeMigration())
+	require.True(t, cp.OrgSpecificOrdererEndpoints())
+}
+
 func TestChannelNotSupported(t *testing.T) {
 	cp := NewChannelProvider(map[string]*cb.Capability{
 		ChannelV1_1:           {},

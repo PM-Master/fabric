@@ -121,6 +121,7 @@ type Channel struct {
 	Policies     map[string]*Policy     `yaml:"Policies,omitempty"`
 	Capabilities map[string]bool        `yaml:"Capabilities,omitempty"`
 	Consortiums  map[string]*Consortium `yaml:"Consortiums,omitempty"`
+	LedgerType   string                 `yaml:"LedgerType,omitempty"`
 
 	ExtraProperties map[string]interface{} `yaml:",inline,omitempty"`
 }

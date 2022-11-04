@@ -8,6 +8,8 @@ package txvalidator
 
 import (
 	"context"
+	ledger2 "github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	"time"
 
 	"github.com/golang/protobuf/proto"
@@ -111,6 +113,7 @@ type TxValidator struct {
 	LedgerResources  LedgerResources
 	Dispatcher       Dispatcher
 	CryptoProvider   bccsp.BCCSP
+	LedgerType       ledger2.Type
 }
 
 var logger = flogging.MustGetLogger("committer.txvalidator")
@@ -139,6 +142,7 @@ func NewTxValidator(
 	pm plugin.Mapper,
 	channelPolicyManagerGetter policies.ChannelPolicyManagerGetter,
 	cryptoProvider bccsp.BCCSP,
+	ledgerType ledger2.Type,
 ) *TxValidator {
 	// Encapsulates interface implementation
 	pluginValidator := plugindispatcher.NewPluginValidator(pm, ler, &dynamicDeserializer{cr: cr}, &dynamicCapabilities{cr: cr}, channelPolicyManagerGetter, cor)
@@ -149,6 +153,7 @@ func NewTxValidator(
 		LedgerResources:  ler,
 		Dispatcher:       plugindispatcher.New(channelID, cr, ler, lcr, pluginValidator),
 		CryptoProvider:   cryptoProvider,
+		LedgerType:       ledgerType,
 	}
 }
 
@@ -327,11 +332,20 @@ func (v *TxValidator) validateTx(req *blockValidationRequest, results chan<- *bl
 		var txResult peer.TxValidationCode
 
 		if payload, txResult = validation.ValidateTransaction(env, v.CryptoProvider); txResult != peer.TxValidationCode_VALID {
-			logger.Errorf("Invalid transaction with index %d", tIdx)
+			// check if block matrix and try again before marking as invalid
+			// DBM validation
+			if v.LedgerType.IsBlockmatrix() {
+				logger.Debugf("performing blockmatrix validation")
+				txResult = blockmatrix.Validate(tIdx, d, req.block.Metadata, logger)
+			} else {
+				logger.Errorf("Invalid transaction with index %d", tIdx)
+			}
+
 			results <- &blockValidationResult{
 				tIdx:           tIdx,
 				validationCode: txResult,
 			}
+
 			return
 		}
 

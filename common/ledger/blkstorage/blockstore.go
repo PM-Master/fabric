@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"fmt"
+	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"time"
 
 	"github.com/hyperledger/fabric-protos-go/common"
@@ -25,9 +27,23 @@ type BlockStore struct {
 }
 
 // newBlockStore constructs a `BlockStore`
-func newBlockStore(id string, conf *Conf, indexConfig *IndexConfig,
-	dbHandle *leveldbhelper.DBHandle, stats *stats) (*BlockStore, error) {
+func newBlockStore(id string, conf *Conf, indexConfig *IndexConfig, dbHandle *leveldbhelper.DBHandle, stats *stats) (*BlockStore, error) {
 	fileMgr, err := newBlockfileMgr(id, conf, indexConfig, dbHandle)
+	if err != nil {
+		return nil, err
+	}
+
+	// create ledgerStats and initialize blockchain_height stat
+	ledgerStats := stats.ledgerStats(id)
+	info := fileMgr.getBlockchainInfo()
+	ledgerStats.updateBlockchainHeight(info.Height)
+
+	return &BlockStore{id, conf, fileMgr, ledgerStats}, nil
+}
+
+// newBlockStore constructs a `BlockStore`
+func newBlockmatrixStore(id string, conf *Conf, stats *stats, indexConfig *IndexConfig, provider *leveldbhelper.Provider) (*BlockStore, error) {
+	fileMgr, err := newBlockmatrixBlockfileMgr(id, conf, indexConfig, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +71,24 @@ func (store *BlockStore) AddBlock(block *common.Block) error {
 // GetBlockchainInfo returns the current info about blockchain
 func (store *BlockStore) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	return store.fileMgr.getBlockchainInfo(), nil
+}
+
+// GetBlockmatrixInfo returns the current info about blockchain
+func (store *BlockStore) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+	if !store.fileMgr.isBlockmatrix() {
+		return nil, fmt.Errorf("cannot call GetBlockmatrixInfo on CHAIN ledger")
+	}
+
+	return store.fileMgr.getBlockmatrixInfo(), nil
+}
+
+// GetBlockmatrixInfo returns the current info about blockchain
+func (store *BlockStore) GetBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	if !store.fileMgr.isBlockmatrix() {
+		return nil, fmt.Errorf("cannot call GetBlocksUpdatedBy on CHAIN ledger")
+	}
+
+	return store.fileMgr.getBlocksUpdatedBy(blockNum)
 }
 
 // RetrieveBlocks returns an iterator that can be used for iterating over a range of blocks
@@ -102,7 +136,8 @@ func (store *BlockStore) RetrieveTxValidationCodeByTxID(txID string) (peer.TxVal
 // Technically, the TxIDs appear in the sort order of radix-sort/shortlex. However,
 // since practically all the TxIDs are of same length, so the sort order would be the lexical sort order
 func (store *BlockStore) ExportTxIds(dir string, newHashFunc snapshot.NewHashFunc) (map[string][]byte, error) {
-	return store.fileMgr.index.exportUniqueTxIDs(dir, newHashFunc)
+	// return store.fileMgr.index.exportUniqueTxIDs(dir, newHashFunc)
+	return store.fileMgr.exportUniqueTxIDs(dir, newHashFunc)
 }
 
 // Shutdown shuts down the block store

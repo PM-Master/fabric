@@ -87,6 +87,7 @@ func NewChannelConfig(channelGroup *cb.ConfigGroup, bccsp bccsp.BCCSP) (*Channel
 	}
 
 	channelCapabilities := cc.Capabilities()
+	fmt.Println("DBM capabilities ledgertype", channelCapabilities.LedgerType())
 
 	if err := cc.Validate(channelCapabilities); err != nil {
 		return nil, err
