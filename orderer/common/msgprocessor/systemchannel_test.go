@@ -747,7 +747,7 @@ func TestNewChannelConfig(t *testing.T) {
 
 	// Successful
 	t.Run("Success", func(t *testing.T) {
-		createTx, err := encoder.MakeChannelCreationTransaction("foo", nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
+		createTx, err := encoder.MakeChannelCreationTransaction("foo", false, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
 		require.Nil(t, err)
 		res, err := templator.NewChannelConfig(createTx)
 		require.Nil(t, err)

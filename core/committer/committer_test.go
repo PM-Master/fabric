@@ -8,8 +8,9 @@ package committer
 
 import (
 	"fmt"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"testing"
+
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
@@ -42,9 +43,9 @@ func (m *mockLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	return info, nil
 }
 
-func (m *mockLedger) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+func (m *mockLedger) GetBlockmatrixInfo() (*redledger.Info, error) {
 	// TODO DBM - implement GetBlockmatrixInfo for mockLedger.  Need to add DBM specific variables to mockLedger.
-	return &blockmatrix.Info{}, fmt.Errorf("GetBlockmatrixInfo not implemented for mockLedger")
+	return &redledger.Info{}, fmt.Errorf("GetBlockmatrixInfo not implemented for mockLedger")
 }
 
 func (m *mockLedger) GetBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {

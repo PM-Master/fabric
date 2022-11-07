@@ -18,34 +18,15 @@ package ledger
 
 import (
 	"github.com/hyperledger/fabric-protos-go/common"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
-
-const (
-	Blockchain  Type = 0
-	Blockmatrix Type = 1
-)
-
-type Type int
-
-func (l Type) IsBlockmatrix() bool {
-	return l == Blockmatrix
-}
-
-func ToType(i int) Type {
-	if i == 1 {
-		return Blockmatrix
-	} else {
-		return Blockchain
-	}
-}
 
 // Ledger captures the methods that are common across the 'PeerLedger', 'OrdererLedger', and 'ValidatedLedger'
 type Ledger interface {
 	// GetBlockchainInfo returns basic info about blockchain
 	GetBlockchainInfo() (*common.BlockchainInfo, error)
 	// GetBlockmatrixInfo returns the basic info about the blockmatrix if it is configured
-	GetBlockmatrixInfo() (*blockmatrix.Info, error)
+	GetBlockmatrixInfo() (*redledger.Info, error)
 	//GetBlocksUpdatedBy returns the block numbers of the blocks that a given block updated
 	GetBlocksUpdatedBy(blockNumber uint64) ([]uint64, error)
 	// GetBlockByNumber returns block at a given height

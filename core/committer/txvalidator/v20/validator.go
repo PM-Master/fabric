@@ -8,9 +8,10 @@ package txvalidator
 
 import (
 	"context"
-	ledger2 "github.com/hyperledger/fabric/common/ledger"
-	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	"time"
+
+	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
@@ -113,7 +114,7 @@ type TxValidator struct {
 	LedgerResources  LedgerResources
 	Dispatcher       Dispatcher
 	CryptoProvider   bccsp.BCCSP
-	LedgerType       ledger2.Type
+	LedgerType       redledger.Type
 }
 
 var logger = flogging.MustGetLogger("committer.txvalidator")
@@ -142,7 +143,7 @@ func NewTxValidator(
 	pm plugin.Mapper,
 	channelPolicyManagerGetter policies.ChannelPolicyManagerGetter,
 	cryptoProvider bccsp.BCCSP,
-	ledgerType ledger2.Type,
+	ledgerType redledger.Type,
 ) *TxValidator {
 	// Encapsulates interface implementation
 	pluginValidator := plugindispatcher.NewPluginValidator(pm, ler, &dynamicDeserializer{cr: cr}, &dynamicCapabilities{cr: cr}, channelPolicyManagerGetter, cor)
@@ -325,6 +326,7 @@ func (v *TxValidator) validateTx(req *blockValidationRequest, results chan<- *bl
 		// chain binding proposal to endorsements to tx holds. We do
 		// NOT check the validity of endorsements, though. That's a
 		// job for the validation plugins
+
 		logger.Debugf("[%s] validateTx starts for block %p env %p txn %d", v.ChannelID, block, env, tIdx)
 		defer logger.Debugf("[%s] validateTx completes for block %p env %p txn %d", v.ChannelID, block, env, tIdx)
 		var payload *common.Payload

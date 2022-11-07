@@ -9,12 +9,13 @@ package txvalidator_test
 import (
 	"errors"
 	"fmt"
-	bmledger "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"io/ioutil"
 	"os"
 	"strconv"
 	"testing"
 	"time"
+
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
@@ -1496,9 +1497,9 @@ func (m *mockLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	return args.Get(0).(*common.BlockchainInfo), nil
 }
 
-func (m *mockLedger) GetBlockmatrixInfo() (*bmledger.Info, error) {
+func (m *mockLedger) GetBlockmatrixInfo() (*redledger.Info, error) {
 	args := m.Called()
-	return args.Get(0).(*bmledger.Info), nil
+	return args.Get(0).(*redledger.Info), nil
 }
 
 func (m *mockLedger) GetBlocksUpdatedBy(blockNumber uint64) ([]uint64, error) {

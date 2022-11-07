@@ -2,11 +2,16 @@ package test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/bccsp/sw"
 	"github.com/hyperledger/fabric/common/genesis"
-	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/common/metrics/disabled"
@@ -20,11 +25,7 @@ import (
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"os"
-	"path/filepath"
-	"testing"
-	"time"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
 func TestName(t *testing.T) {
@@ -33,7 +34,7 @@ func TestName(t *testing.T) {
 	provider1 := testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
 	defer provider1.Close()
 
-	bg, gb := NewBlockGenerator(t, "ledger1", false, ledger.Blockchain)
+	bg, gb := NewBlockGenerator(t, "ledger1", false, redledger.Blockchain)
 	l, err := provider1.CreateFromGenesisBlock(gb)
 	require.NoError(t, err)
 	defer l.Close()
@@ -83,7 +84,7 @@ func TestBlockchainDoesNotDelete(t *testing.T) {
 	provider1 := testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
 	defer provider1.Close()
 
-	bg, gb := NewBlockGenerator(t, "ledger1", false, ledger.Blockchain)
+	bg, gb := NewBlockGenerator(t, "ledger1", false, redledger.Blockchain)
 	l, err := provider1.CreateFromGenesisBlock(gb)
 	require.NoError(t, err)
 	defer l.Close()
@@ -136,7 +137,7 @@ func TestBlockmatrixDeletesFromBlockOnKeyDelete(t *testing.T) {
 	provider1 := testutilNewProvider(conf, t, &mock.DeployedChaincodeInfoProvider{})
 	defer provider1.Close()
 
-	bg, gb := NewBlockGenerator(t, "ledger1", false, ledger.Blockmatrix)
+	bg, gb := NewBlockGenerator(t, "ledger1", false, redledger.Blockmatrix)
 	l, err := provider1.CreateFromGenesisBlock(gb)
 	require.NoError(t, err)
 	defer l.Close()
@@ -236,7 +237,7 @@ type blockGenerator struct {
 }
 
 // NewBlockGenerator instantiates new BlockGenerator for testing
-func NewBlockGenerator(t *testing.T, ledgerID string, signTxs bool, lt ledger.Type) (*blockGenerator, *cb.Block) {
+func NewBlockGenerator(t *testing.T, ledgerID string, signTxs bool, lt redledger.Type) (*blockGenerator, *cb.Block) {
 	gb, err := makeGenesisBlock(t, ledgerID, lt)
 	require.NoError(t, err)
 	gb.Metadata.Metadata[cb.BlockMetadataIndex_TRANSACTIONS_FILTER] = txflags.NewWithValues(len(gb.Data.Data), peer.TxValidationCode_VALID)
@@ -251,7 +252,7 @@ func (bg *blockGenerator) NextBlock(simulationResults [][]byte) *cb.Block {
 	return block
 }
 
-func makeGenesisBlock(t *testing.T, channelID string, lt ledger.Type) (*cb.Block, error) {
+func makeGenesisBlock(t *testing.T, channelID string, lt redledger.Type) (*cb.Block, error) {
 	profile := genesisconfig.Load(genesisconfig.SampleDevModeSoloProfile, configtest.GetDevConfigDir())
 
 	if lt.IsBlockmatrix() {

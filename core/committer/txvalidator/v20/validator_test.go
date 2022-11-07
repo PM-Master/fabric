@@ -9,11 +9,12 @@ package txvalidator_test
 import (
 	"errors"
 	"fmt"
-	commonledger "github.com/hyperledger/fabric/common/ledger"
 	"os"
 	"strconv"
 	"testing"
 	"time"
+
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
@@ -191,7 +192,7 @@ func setupValidatorWithMspMgr(mspmgr msp.MSPManager, mockID *supportmocks.Identi
 		pm,
 		mockCpmg,
 		cryptoProvider,
-		commonledger.Blockchain,
+		redledger.Blockchain,
 	)
 
 	return v, mockQE, mockID, mockCR
@@ -1100,7 +1101,7 @@ func TestValidationInvalidEndorsing(t *testing.T) {
 		pm,
 		mockCpmg,
 		cryptoProvider,
-		commonledger.Blockchain,
+		redledger.Blockchain,
 	)
 
 	tx := getEnv(ccID, nil, createRWset(t, ccID), t)
@@ -1175,7 +1176,7 @@ func TestValidationPluginExecutionError(t *testing.T) {
 		pm,
 		mockCpmg,
 		cryptoProvider,
-		commonledger.Blockchain,
+		redledger.Blockchain,
 	)
 
 	tx := getEnv(ccID, nil, createRWset(t, ccID), t)
@@ -1229,7 +1230,7 @@ func TestValidationPluginNotFound(t *testing.T) {
 		pm,
 		mockCpmg,
 		cryptoProvider,
-		commonledger.Blockchain,
+		redledger.Blockchain,
 	)
 
 	tx := getEnv(ccID, nil, createRWset(t, ccID), t)

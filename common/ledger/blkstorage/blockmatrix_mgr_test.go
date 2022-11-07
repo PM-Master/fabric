@@ -1,7 +1,6 @@
 package blkstorage
 
 import (
-	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -9,31 +8,146 @@ import (
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric/common/genesis"
+	"github.com/hyperledger/fabric/core/config/configtest"
+	"github.com/hyperledger/fabric/internal/configtxgen/encoder"
+	"github.com/hyperledger/fabric/internal/configtxgen/genesisconfig"
 	"github.com/stretchr/testify/require"
 
+	cb "github.com/hyperledger/fabric-protos-go/common"
+	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
-	bminfo "github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
 	"github.com/hyperledger/fabric/core/ledger/kvledger/txmgmt/rwsetutil"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
-func newTestBlockmatrixWrapper(env *testEnv, ledgerid string) *testBlockfileMgrWrapper {
+func newTestBlockmatrixWrapper(env *testEnv, ledgerid string, createGenesis bool) (*testBlockfileMgrWrapper, *common.Block) {
 	blkStore, err := env.provider.Open(ledgerid)
 	require.NoError(env.t, err)
-	return &testBlockfileMgrWrapper{env.t, blkStore.fileMgr}
+
+	var gb *common.Block
+	if createGenesis {
+		gb = GenesisBlock(env, ledgerid)
+
+		err = blkStore.AddBlock(gb)
+		require.NoError(env.t, err)
+
+		r1, c1, _ := redledger.CalculateExpectedHashes(protoutil.BlockDataHash, blkStore.fileMgr.blockmatrixMgr.getBlockmatrixInfo().Size, gb)
+		require.Equal(env.t, &redledger.Info{
+			Size:         blkStore.fileMgr.blockmatrixMgr.getBlockmatrixInfo().Size,
+			BlockCount:   1,
+			RowHashes:    r1,
+			ColumnHashes: c1,
+		}, blkStore.fileMgr.blockmatrixMgr.getBlockmatrixInfo())
+	}
+
+	return &testBlockfileMgrWrapper{env.t, blkStore.fileMgr}, gb
+}
+
+func GenesisBlock(env *testEnv, ledgerid string) *cb.Block {
+	profile := genesisconfig.Load(genesisconfig.SampleDevModeSoloProfile, configtest.GetDevConfigDir())
+	channelGroup, err := encoder.NewChannelGroup(profile)
+	require.NoError(env.t, err)
+
+	envelope := &cb.Envelope{
+		Payload: protoutil.MarshalOrPanic(&cb.Payload{
+			Header: &cb.Header{
+				ChannelHeader: protoutil.MarshalOrPanic(&cb.ChannelHeader{
+					ChannelId: "testChain",
+					Type:      int32(cb.HeaderType_CONFIG),
+				}),
+			},
+			Data: protoutil.MarshalOrPanic(&cb.ConfigUpdateEnvelope{
+				ConfigUpdate: protoutil.MarshalOrPanic(&cb.ConfigUpdate{
+					ChannelId: "testChain",
+					ReadSet: &cb.ConfigGroup{
+						Groups: map[string]*cb.ConfigGroup{
+							"Application": {
+								Groups: map[string]*cb.ConfigGroup{
+									"SampleOrg": {},
+								},
+							},
+						},
+						Values: map[string]*cb.ConfigValue{
+							"Consortium": {},
+						},
+					},
+					WriteSet: &cb.ConfigGroup{
+						Groups: map[string]*cb.ConfigGroup{
+							"Application": {
+								Version:   1,
+								ModPolicy: "Admins",
+								Groups: map[string]*cb.ConfigGroup{
+									"SampleOrg": {},
+								},
+								Policies: map[string]*cb.ConfigPolicy{
+									"Admins": {
+										Policy: &cb.Policy{
+											Type: int32(cb.Policy_IMPLICIT_META),
+											Value: protoutil.MarshalOrPanic(&cb.ImplicitMetaPolicy{
+												SubPolicy: "Admins",
+												Rule:      cb.ImplicitMetaPolicy_ANY,
+											}),
+										},
+										ModPolicy: "Admins",
+									},
+									"Readers": {
+										Policy: &cb.Policy{
+											Type: int32(cb.Policy_IMPLICIT_META),
+											Value: protoutil.MarshalOrPanic(&cb.ImplicitMetaPolicy{
+												SubPolicy: "Readers",
+												Rule:      cb.ImplicitMetaPolicy_ANY,
+											}),
+										},
+										ModPolicy: "Admins",
+									},
+									"Writers": {
+										Policy: &cb.Policy{
+											Type: int32(cb.Policy_IMPLICIT_META),
+											Value: protoutil.MarshalOrPanic(&cb.ImplicitMetaPolicy{
+												SubPolicy: "Writers",
+												Rule:      cb.ImplicitMetaPolicy_ANY,
+											}),
+										},
+										ModPolicy: "Admins",
+									},
+								},
+							},
+						},
+						Values: map[string]*cb.ConfigValue{
+							"Consortium": {
+								Value: protoutil.MarshalOrPanic(&cb.Consortium{
+									Name: "MyConsortium",
+								}),
+							},
+						},
+						XXX_unrecognized: protoutil.MarshalOrPanic(&redledger.LedgerType{Type: redledger.LedgerTypeString}),
+					},
+				}),
+			}),
+		}),
+	}
+
+	gb := genesis.NewFactoryImpl(channelGroup).Block(ledgerid)
+	gb.Data.Data = [][]byte{protoutil.MarshalOrPanic(envelope)}
+	txsFilter := txflags.NewWithValues(len(gb.Data.Data), pb.TxValidationCode_VALID)
+	gb.Metadata.Metadata[cb.BlockMetadataIndex_TRANSACTIONS_FILTER] = txsFilter
+
+	return gb
 }
 
 func TestBlockRewriteSeveralBlocks(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 
-	blocks := make([]*common.Block, 0)
-	for i := 0; i < 14; i++ {
+	/*blocks := make([]*common.Block, 0)
+	for i := 1; i <= 14; i++ {
 		env1 := createTestEnv("chain1", "cc1",
 			createRWset(t, map[string]map[string]string{"cc1": {"k1": fmt.Sprintf("v%d", i)}}))
 		env1.Signature = []byte("env1-signature")
@@ -41,13 +155,23 @@ func TestBlockRewriteSeveralBlocks(t *testing.T) {
 		blocks = append(blocks, block)
 	}
 
-	blkfileMgrWrapper.addBlocks(blocks)
+	blkfileMgrWrapper.addBlocks(blocks[:1])
+	r1, c1, _ := redledger.CalculateExpectedHashes(blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo().Size, gb, blocks[1])
+	require.Equal(t, &redledger.Info{
+		Size:         blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo().Size,
+		BlockCount:   2,
+		RowHashes:    r1,
+		ColumnHashes: c1,
+	}, blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo())
+	blkfileMgrWrapper.addBlocks(blocks[2:])
 
-	size := blockmatrix.ComputeSize(uint64(len(blocks)))
-	r, c := blockmatrix.CalculateExpectedHashes(size, blocks...)
-	require.Equal(t, &bminfo.Info{
+	size := redledger.ComputeSize(uint64(len(blocks)) + 1)
+	blocks = append(blocks, gb)
+	r, c, err := redledger.CalculateExpectedHashes(size, blocks...)
+	require.NoError(t, err)
+	require.Equal(t, &redledger.Info{
 		Size:         size,
-		BlockCount:   14,
+		BlockCount:   15,
 		RowHashes:    r,
 		ColumnHashes: c,
 	}, blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo())
@@ -55,31 +179,32 @@ func TestBlockRewriteSeveralBlocks(t *testing.T) {
 	env1 := createTestEnv("chain1", "cc1",
 		createRWset(t, map[string]map[string]string{"cc1": {"k1": ""}}))
 	env1.Signature = []byte("env1-signature")
-	block := testutil.NewBlock([]*common.Envelope{env1}, uint64(14), []byte("hash"))
+	block := testutil.NewBlock([]*common.Envelope{env1}, uint64(15), []byte("hash"))
 	blkfileMgrWrapper.addBlocks([]*common.Block{block})
 
-	blockNums, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlocksUpdatedBy(14)
+	blockNums, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlocksUpdatedBy(15)
 	require.NoError(t, err)
-	require.Equal(t, 14, len(blockNums))
+	require.Equal(t, 14, len(blockNums))*/
 }
 
 func TestBlockRewrite(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 
 	env1 := createTestEnv("chain1", "cc1",
 		createRWset(t, map[string]map[string]string{"cc1": {"k1": "v1", "k2": "v2", "k3": "v3"}}))
 	env1.Signature = []byte("env1-signature")
-	block1 := testutil.NewBlock([]*common.Envelope{env1}, 0, []byte("hash"))
+	block1 := testutil.NewBlock([]*common.Envelope{env1}, 1, []byte("hash"))
 
 	blkfileMgrWrapper.addBlocks([]*common.Block{block1})
 
-	r, c := blockmatrix.CalculateExpectedHashes(2, block1)
-	require.Equal(t, &bminfo.Info{
+	r, c, err := redledger.CalculateExpectedHashes(protoutil.BlockDataHash, 2, gb, block1)
+	require.NoError(t, err)
+	require.Equal(t, &redledger.Info{
 		Size:         2,
-		BlockCount:   1,
+		BlockCount:   2,
 		RowHashes:    r,
 		ColumnHashes: c,
 	}, blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo())
@@ -90,20 +215,20 @@ func TestBlockRewrite(t *testing.T) {
 	env3 := createTestEnv("chain1", "cc1",
 		createRWset(t, map[string]map[string]string{"cc1": {"k2": ""}}))
 	env3.Signature = []byte("env3-signature")
-	block2 := testutil.NewBlock([]*common.Envelope{env2, env3}, 1, []byte("hash"))
+	block2 := testutil.NewBlock([]*common.Envelope{env2, env3}, 2, []byte("hash"))
 
 	blkfileMgrWrapper.addBlocks([]*common.Block{block2})
 
 	// check blockchain info
 	info := blkfileMgrWrapper.blockfileMgr.getBlockchainInfo()
-	require.Equal(t, uint64(2), info.Height)
+	require.Equal(t, uint64(3), info.Height)
 
 	// check blockmatrix info
 	// get expected block after change
 	txID1, sign1 := getTxIDAndSignatureForEnvelope(block2.Data.Data[0])
 	txID2, sign2 := getTxIDAndSignatureForEnvelope(block2.Data.Data[1])
 	// call rewrite on block to test the block was updated
-	_, err := blockmatrix.RewriteBlock(block1, map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx{
+	_, err = blockmatrix.RewriteBlock(block1, map[blockmatrix.EncodedNsKey]blockmatrix.KeyInTx{
 		blockmatrix.EncodeNsKey("cc1", "k1"): {
 			IsDelete: true,
 			ValidatingTxInfo: &blockmatrix.ValidatingTxInfo{
@@ -122,37 +247,13 @@ func TestBlockRewrite(t *testing.T) {
 	require.NoError(t, err)
 
 	bmInfo := blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo()
-	r, c = blockmatrix.CalculateExpectedHashes(2, block1, block2)
-	require.Equal(t, &bminfo.Info{
-		Size:         2,
-		BlockCount:   2,
+	r, c, err = redledger.CalculateExpectedHashes(protoutil.BlockDataHash, 3, gb, block1, block2)
+	require.Equal(t, &redledger.Info{
+		Size:         3,
+		BlockCount:   3,
 		RowHashes:    r,
 		ColumnHashes: c,
 	}, bmInfo)
-
-	/*b0, err := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.retrieveBlockByNumber(0)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(b0.Data.Data))
-
-	txRWSet, err := blockmatrix.ExtractTxRwSetsFromEnvelope(protoutil.UnmarshalEnvelopeOrPanic(b0.Data.Data[0]))
-	if err != nil {
-		return
-	}
-	require.Equal(t, 1, len(txRWSet[0].NsRwSets[0].KvRwSet.Writes))
-
-	write := txRWSet[0].NsRwSets[0].KvRwSet.Writes[0]
-	require.Equal(t, "k3", write.Key)
-	require.Equal(t, []byte("v3"), write.Value)*/
-
-	/*metadata := b1.Metadata.Metadata[blockmatrix.BlockMetadataIndex_ValidatedTxUpdates]
-	vtuColl := &blockmatrix.ValidatedTxUpdateCollection{}
-	err = vtuColl.Unmarshal(metadata)
-	require.NoError(t, err)
-	fmt.Println(vtuColl.ValidatedTxUpdates[0].Hash)
-
-	hash, err := blockmatrix.ComputeTxHash(b1.Metadata, 0, b1.Data.Data[0])
-	require.NoError(t, err)
-	fmt.Println(hash)*/
 }
 
 func getTxIDAndSignatureForEnvelope(bytes []byte) (string, []byte) {
@@ -202,9 +303,10 @@ func createRWset(t *testing.T, nsKVs map[string]map[string]string) []byte {
 func TestMatrixBlockfileMgrBlockReadWrite(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	// ignore first index because its a genesis block and we already generate one
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 	blkfileMgrWrapper.testGetBlockByHash(blocks)
 	blkfileMgrWrapper.testGetBlockByNumber(blocks)
@@ -213,10 +315,11 @@ func TestMatrixBlockfileMgrBlockReadWrite(t *testing.T) {
 func TestMatrixBlockfileMgrBlockIterator(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
+	blocks = append([]*common.Block{gb}, blocks...)
 	testMatrixBlockfileMgrBlockIterator(t, blkfileMgrWrapper.blockfileMgr, 0, 7, blocks[0:8])
 }
 
@@ -241,13 +344,17 @@ func testMatrixBlockfileMgrBlockIterator(t *testing.T, blockfileMgr *blockfileMg
 func TestMatrixBlockfileMgrBlockchainInfo(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 
 	bcInfo := blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlockchainInfo()
-	require.Equal(t, &common.BlockchainInfo{Height: 0, CurrentBlockHash: nil, PreviousBlockHash: nil}, bcInfo)
+	require.Equal(t, &common.BlockchainInfo{
+		Height:            1,
+		CurrentBlockHash:  protoutil.BlockHeaderHash(gb.Header),
+		PreviousBlockHash: gb.Header.PreviousHash,
+	}, bcInfo)
 
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 	bcInfo = blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlockchainInfo()
 	require.Equal(t, uint64(10), bcInfo.Height)
@@ -262,7 +369,10 @@ func TestMatrixTxIDExists(t *testing.T) {
 		require.NoError(t, err)
 		defer blkStore.Shutdown()
 
-		blocks := testutil.ConstructTestBlocks(t, 2)
+		gb := GenesisBlock(env, "testLedger")
+		err = blkStore.AddBlock(gb)
+		require.NoError(env.t, err)
+		blocks := testutil.ConstructTestBlocks(t, 2)[1:]
 		for _, blk := range blocks {
 			require.NoError(t, blkStore.AddBlock(blk))
 		}
@@ -299,10 +409,11 @@ func TestMatrixTxIDExists(t *testing.T) {
 func TestMatrixBlockfileMgrGetTxById(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
-	blocks := testutil.ConstructTestBlocks(t, 2)
+	blocks := testutil.ConstructTestBlocks(t, 2)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
+	blocks = append([]*common.Block{gb}, blocks...)
 	for _, blk := range blocks {
 		for j, txEnvelopeBytes := range blk.Data.Data {
 			// blockNum starts with 0
@@ -437,10 +548,11 @@ func TestMatrixBlockfileMgrGetTxByIdDuplicateTxid(t *testing.T) {
 func TestMatrixBlockfileMgrGetTxByBlockNumTranNum(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
+	blocks = append([]*common.Block{gb}, blocks...)
 	for blockIndex, blk := range blocks {
 		for tranIndex, txEnvelopeBytes := range blk.Data.Data {
 			// blockNum and tranNum both start with 0
@@ -457,14 +569,14 @@ func TestMatrixBlockfileMgrRestart(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
 	ledgerid := "testLedger"
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, ledgerid)
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, ledgerid, true)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 	expectedHeight := uint64(10)
 	require.Equal(t, expectedHeight, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlockchainInfo().Height)
 	blkfileMgrWrapper.close()
 
-	blkfileMgrWrapper = newTestBlockmatrixWrapper(env, ledgerid)
+	blkfileMgrWrapper, _ = newTestBlockmatrixWrapper(env, ledgerid, false)
 	defer blkfileMgrWrapper.close()
 	require.Equal(t, 9, int(blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo.lastPersistedBlock))
 	blkfileMgrWrapper.testGetBlockByHash(blocks)
@@ -502,9 +614,9 @@ func TestMatrixBlockfileMgrRestart(t *testing.T) {
 func TestMatrixBlockfileMgrGetBlockByTxID(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 	for _, blk := range blocks {
 		for j := range blk.Data.Data {
@@ -596,11 +708,11 @@ func testmatrixutilGetFileSize(t *testing.T, path string) int {
 func TestName(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 	blkfileMgr := blkfileMgrWrapper.blockfileMgr
 
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks[:5])
 
 	blkfileMgr.retrieveBlocks(1)
@@ -610,12 +722,13 @@ func TestName(t *testing.T) {
 func TestMatrixBlocksItrBlockingNext(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 	blkfileMgr := blkfileMgrWrapper.blockfileMgr
 
-	blocks := testutil.ConstructTestBlocks(t, 10)
-	blkfileMgrWrapper.addBlocks(blocks[:5])
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
+	blkfileMgrWrapper.addBlocks(blocks[:4])
+	blocks = append([]*common.Block{gb}, blocks...)
 
 	itr, err := blkfileMgr.retrieveBlocks(1)
 	require.NoError(t, err)
@@ -633,11 +746,11 @@ func TestMatrixBlocksItrBlockingNext(t *testing.T) {
 func TestMatrixBlockItrClose(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 	blkfileMgr := blkfileMgrWrapper.blockfileMgr
 
-	blocks := testutil.ConstructTestBlocks(t, 5)
+	blocks := testutil.ConstructTestBlocks(t, 5)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 
 	itr, err := blkfileMgr.retrieveBlocks(1)
@@ -655,11 +768,11 @@ func TestMatrixBlockItrClose(t *testing.T) {
 func TestMatrixRaceToDeadlock(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 	blkfileMgr := blkfileMgrWrapper.blockfileMgr
 
-	blocks := testutil.ConstructTestBlocks(t, 5)
+	blocks := testutil.ConstructTestBlocks(t, 5)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 
 	for i := 0; i < 1000; i++ {
@@ -688,10 +801,10 @@ func TestMatrixRaceToDeadlock(t *testing.T) {
 func TestMatrixBlockItrCloseWithoutRetrieve(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 	blkfileMgr := blkfileMgrWrapper.blockfileMgr
-	blocks := testutil.ConstructTestBlocks(t, 5)
+	blocks := testutil.ConstructTestBlocks(t, 5)[1:]
 	blkfileMgrWrapper.addBlocks(blocks)
 
 	itr, err := blkfileMgr.retrieveBlocks(2)
@@ -702,10 +815,10 @@ func TestMatrixBlockItrCloseWithoutRetrieve(t *testing.T) {
 func TestMatrixCloseMultipleItrsWaitForFutureBlock(t *testing.T) {
 	env := newTestEnv(t, NewConf(testPath(), 0))
 	defer env.Cleanup()
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
 	blkfileMgr := blkfileMgrWrapper.blockfileMgr
-	blocks := testutil.ConstructTestBlocks(t, 10)
+	blocks := testutil.ConstructTestBlocks(t, 10)[1:]
 	blkfileMgrWrapper.addBlocks(blocks[:5])
 
 	wg := &sync.WaitGroup{}

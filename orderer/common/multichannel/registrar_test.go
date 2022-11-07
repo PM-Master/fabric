@@ -680,7 +680,7 @@ func TestCreateChain(t *testing.T) {
 		manager.chains["test"] = testChainSupport
 
 		orglessChannelConf := genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir())
-		envConfigUpdate, err := encoder.MakeChannelCreationTransaction("test", mockCrypto(), orglessChannelConf)
+		envConfigUpdate, err := encoder.MakeChannelCreationTransaction("test", false, mockCrypto(), orglessChannelConf)
 		require.NoError(t, err, "Constructing chain creation tx")
 
 		manager.newChain(envConfigUpdate)
@@ -710,7 +710,7 @@ func TestCreateChain(t *testing.T) {
 		manager.Initialize(consenters)
 		orglessChannelConf := genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir())
 		orglessChannelConf.Application.Organizations = nil
-		envConfigUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, mockCrypto(), orglessChannelConf)
+		envConfigUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, false, mockCrypto(), orglessChannelConf)
 		require.NoError(t, err, "Constructing chain creation tx")
 
 		res, err := manager.NewChannelConfig(envConfigUpdate)

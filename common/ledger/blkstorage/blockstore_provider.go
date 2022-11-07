@@ -122,37 +122,9 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 // This method should be invoked only once for a particular ledgerid
 // implements blockStoreProvider interface in factory.go
 func (p *BlockStoreProvider) Open(ledgerid string) (*BlockStore, error) {
-	if isBlockmatrixLedger(ledgerid) {
-		logger.Info("DBM opening BLOCKMATRIX ledger ", ledgerid)
-		dbConf := &leveldbhelper.Conf{
-			DBPath:         p.conf.getMatrixLedgerBlockDir(ledgerid),
-			ExpectedFormat: dataFormatVersion(p.indexConfig),
-		}
-
-		_, err := fileutil.CreateDirIfMissing(dbConf.DBPath)
-		if err != nil {
-			return nil, err
-		}
-
-		leveldbProvider, err := leveldbhelper.NewProvider(dbConf)
-		if err != nil {
-			return nil, err
-		}
-
-		p.ledgerDBProviders[ledgerid] = leveldbProvider
-
-		return newBlockmatrixStore(ledgerid, p.conf, p.stats, p.indexConfig, leveldbProvider)
-	} else {
-		logger.Debug("DBM opening blockchain ledger ", ledgerid)
-		indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
-		return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats)
-	}
-}
-
-func isBlockmatrixLedger(ledgerid string) bool {
-	// TODO open the ledger_id_ledger_type file OR check if a file called ledger_id_blockmatrix exists
-	// if yes - DBM else chain
-	panic("not implemented yet")
+	logger.Debug("DBM opening blockchain ledger ", ledgerid)
+	indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
+	return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats)
 }
 
 // ImportFromSnapshot initializes blockstore from a previously generated snapshot

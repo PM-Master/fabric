@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package fileledger
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -91,7 +90,6 @@ func (f *fileLedgerFactory) ChannelIDs() []string {
 	if err != nil {
 		logger.Panic(err)
 	}
-	fmt.Println(len(channelIDs))
 	return channelIDs
 }
 

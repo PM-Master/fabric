@@ -39,6 +39,7 @@ import (
 	mspmgmt "github.com/hyperledger/fabric/msp/mgmt"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
 var peerLogger = flogging.MustGetLogger("peer")
@@ -193,7 +194,9 @@ func (p *Peer) CreateChannel(
 		return errors.WithMessage(err, "cannot create ledger from genesis block")
 	}
 
-	if err := p.createChannel(cid, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
+	ledgerType := redledger.GetLedgerType(cb)
+
+	if err := p.createChannel(cid, ledgerType, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
 		return err
 	}
 
@@ -208,8 +211,9 @@ func (p *Peer) CreateChannelFromSnapshot(
 	legacyLifecycleValidation plugindispatcher.LifecycleResources,
 	newLifecycleValidation plugindispatcher.CollectionAndLifecycleResources,
 ) error {
+	// TODO DBM blockmatrix does not support snapshot
 	channelCallback := func(l ledger.PeerLedger, cid string) {
-		if err := p.createChannel(cid, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
+		if err := p.createChannel(cid, redledger.Blockchain, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
 			logger.Errorf("error creating channel for %s", cid)
 			return
 		}
@@ -237,6 +241,7 @@ func RetrievePersistedChannelConfig(ledger ledger.PeerLedger) (*common.Config, e
 // createChannel creates a new channel object and insert it into the channels slice.
 func (p *Peer) createChannel(
 	cid string,
+	ledgerType redledger.Type,
 	l ledger.PeerLedger,
 	deployedCCInfoProvider ledger.DeployedChaincodeInfoProvider,
 	legacyLifecycleValidation plugindispatcher.LifecycleResources,
@@ -253,10 +258,6 @@ func (p *Peer) createChannel(
 	}
 
 	capabilitiesSupportedOrPanic(bundle)
-
-	// get ledger type from config
-	ledgerType := bundle.ChannelConfig().Capabilities().LedgerType()
-	fmt.Println("DBM createChannel found ledgerType: ", ledgerType)
 
 	channelconfig.LogSanityChecks(bundle)
 
@@ -528,8 +529,17 @@ func (p *Peer) Initialize(
 			peerLogger.Debugf("Error while loading ledger %s with message %s. We continue to the next ledger rather than abort.", cid, err)
 			continue
 		}
+
+		// retrieve the genesis block from the ledger to determine ledger type
+		genesisBlock, err := ledger.GetBlockByNumber(0)
+		if err != nil {
+			return
+		}
+
+		ledgerType := redledger.GetLedgerType(genesisBlock)
+
 		// Create a chain if we get a valid ledger with config block
-		err = p.createChannel(cid, ledger, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation)
+		err = p.createChannel(cid, ledgerType, ledger, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation)
 		if err != nil {
 			peerLogger.Errorf("Failed to load chain %s(%s)", cid, err)
 			peerLogger.Debugf("Error reloading chain %s with message %s. We continue to the next chain rather than abort.", cid, err)

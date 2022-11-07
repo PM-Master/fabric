@@ -8,11 +8,14 @@ package blkstorage
 
 import (
 	"fmt"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
+	"os"
 	"time"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/hyperledger/fabric/internal/fileutil"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
+
 	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
@@ -28,24 +31,27 @@ type BlockStore struct {
 
 // newBlockStore constructs a `BlockStore`
 func newBlockStore(id string, conf *Conf, indexConfig *IndexConfig, dbHandle *leveldbhelper.DBHandle, stats *stats) (*BlockStore, error) {
-	fileMgr, err := newBlockfileMgr(id, conf, indexConfig, dbHandle)
-	if err != nil {
+	var fileMgr *blockfileMgr
+	if exists, err := fileutil.DirExists(conf.getMatrixLedgerBlockDir(id)); err != nil {
 		return nil, err
-	}
+	} else if exists {
+		dbConf := &leveldbhelper.Conf{
+			DBPath:         conf.getMatrixLedgerBlockDir(id),
+			ExpectedFormat: dataFormatVersion(indexConfig),
+		}
 
-	// create ledgerStats and initialize blockchain_height stat
-	ledgerStats := stats.ledgerStats(id)
-	info := fileMgr.getBlockchainInfo()
-	ledgerStats.updateBlockchainHeight(info.Height)
+		leveldbProvider, err := leveldbhelper.NewProvider(dbConf)
+		if err != nil {
+			return nil, err
+		}
 
-	return &BlockStore{id, conf, fileMgr, ledgerStats}, nil
-}
-
-// newBlockStore constructs a `BlockStore`
-func newBlockmatrixStore(id string, conf *Conf, stats *stats, indexConfig *IndexConfig, provider *leveldbhelper.Provider) (*BlockStore, error) {
-	fileMgr, err := newBlockmatrixBlockfileMgr(id, conf, indexConfig, provider)
-	if err != nil {
-		return nil, err
+		if fileMgr, err = newBlockmatrixBlockfileMgr(id, conf, indexConfig, leveldbProvider); err != nil {
+			return nil, err
+		}
+	} else if !exists {
+		if fileMgr, err = newBlockfileMgr(id, conf, indexConfig, dbHandle); err != nil {
+			return nil, err
+		}
 	}
 
 	// create ledgerStats and initialize blockchain_height stat
@@ -58,6 +64,12 @@ func newBlockmatrixStore(id string, conf *Conf, stats *stats, indexConfig *Index
 
 // AddBlock adds a new block
 func (store *BlockStore) AddBlock(block *common.Block) error {
+	if block.Header.Number == 0 && redledger.GetLedgerType(block) == redledger.Blockmatrix {
+		if err := store.initAsBlockmatrix(); err != nil {
+			return err
+		}
+	}
+
 	// track elapsed time to collect block commit time
 	startBlockCommit := time.Now()
 	result := store.fileMgr.addBlock(block)
@@ -68,13 +80,49 @@ func (store *BlockStore) AddBlock(block *common.Block) error {
 	return result
 }
 
+func (store *BlockStore) initAsBlockmatrix() error {
+	fmt.Println("DBM init channel ", store.id, " with blockmatrix")
+	dbConf := &leveldbhelper.Conf{
+		DBPath:         store.conf.getMatrixLedgerBlockDir(store.id),
+		ExpectedFormat: dataFormatVersion(store.fileMgr.indexConfig),
+	}
+
+	chainDir := store.conf.getLedgerBlockDir(store.id)
+	if ok, err := fileutil.DirExists(chainDir); err != nil {
+		return err
+	} else if ok {
+		if err = os.RemoveAll(chainDir); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println("creating MATRIX at ", dbConf.DBPath)
+	if _, err := fileutil.CreateDirIfMissing(dbConf.DBPath); err != nil {
+		return err
+	}
+
+	leveldbProvider, err := leveldbhelper.NewProvider(dbConf)
+	if err != nil {
+		return err
+	}
+
+	fileMgr, err := newBlockmatrixBlockfileMgr(store.id, store.conf, store.fileMgr.indexConfig, leveldbProvider)
+	if err != nil {
+		return err
+	}
+
+	store.fileMgr = fileMgr
+
+	return nil
+}
+
 // GetBlockchainInfo returns the current info about blockchain
 func (store *BlockStore) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	return store.fileMgr.getBlockchainInfo(), nil
 }
 
 // GetBlockmatrixInfo returns the current info about blockchain
-func (store *BlockStore) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+func (store *BlockStore) GetBlockmatrixInfo() (*redledger.Info, error) {
 	if !store.fileMgr.isBlockmatrix() {
 		return nil, fmt.Errorf("cannot call GetBlockmatrixInfo on CHAIN ledger")
 	}

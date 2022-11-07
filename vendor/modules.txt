@@ -405,6 +405,9 @@ github.com/syndtr/goleveldb/leveldb/util
 github.com/tedsuo/ifrit
 github.com/tedsuo/ifrit/ginkgomon
 github.com/tedsuo/ifrit/grouper
+# github.com/usnistgov/redledger-core v0.0.0-20221214030833-f3782e20efec
+## explicit
+github.com/usnistgov/redledger-core/blockmatrix
 # github.com/willf/bitset v1.1.10
 ## explicit
 github.com/willf/bitset

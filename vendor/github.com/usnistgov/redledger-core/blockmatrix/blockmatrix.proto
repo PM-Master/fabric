@@ -15,3 +15,7 @@ message Info {
     repeated bytes rowHashes = 3;
     repeated bytes columnHashes = 4;
 }
+
+message LedgerType {
+    string type = 1;
+}

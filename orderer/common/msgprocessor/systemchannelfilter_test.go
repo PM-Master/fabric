@@ -165,7 +165,7 @@ func TestGoodProposal(t *testing.T) {
 	mcc := newMockChainCreator()
 	mv := &mocks.MetadataValidator{}
 
-	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
+	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, false, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
 	require.Nil(t, err, "Error constructing configtx")
 	ingressTx := makeConfigTxFromConfigUpdateTx(configUpdate)
 
@@ -181,7 +181,7 @@ func TestProposalRejectedByConfig(t *testing.T) {
 	mcc.NewChannelConfigErr = fmt.Errorf("desired err text")
 	mv := &mocks.MetadataValidator{}
 
-	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
+	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, false, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
 	require.Nil(t, err, "Error constructing configtx")
 	ingressTx := makeConfigTxFromConfigUpdateTx(configUpdate)
 
@@ -202,7 +202,7 @@ func TestNumChainsExceeded(t *testing.T) {
 	mcc.newChains = make([]*cb.Envelope, 2)
 	mv := &mocks.MetadataValidator{}
 
-	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
+	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, false, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
 	require.Nil(t, err, "Error constructing configtx")
 	ingressTx := makeConfigTxFromConfigUpdateTx(configUpdate)
 
@@ -221,7 +221,7 @@ func TestMaintenanceMode(t *testing.T) {
 	mcc.ms.msc.ConsensusStateReturns(orderer.ConsensusType_STATE_MAINTENANCE)
 	mv := &mocks.MetadataValidator{}
 
-	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
+	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, false, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
 	require.Nil(t, err, "Error constructing configtx")
 	ingressTx := makeConfigTxFromConfigUpdateTx(configUpdate)
 
@@ -440,7 +440,7 @@ func TestFailedMetadataValidation(t *testing.T) {
 	mv.ValidateConsensusMetadataReturns(errors.New(errorString))
 	mcc := newMockChainCreator()
 
-	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
+	configUpdate, err := encoder.MakeChannelCreationTransaction(newChainID, false, nil, genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir()))
 	require.NoError(t, err, "Error constructing configtx")
 	ingressTx := makeConfigTxFromConfigUpdateTx(configUpdate)
 

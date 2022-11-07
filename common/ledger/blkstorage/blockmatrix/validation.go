@@ -3,11 +3,12 @@ package blockmatrix
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"reflect"
+
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/protoutil"
-	"reflect"
 )
 
 // BlockMetadataIndex_ValidatedTxUpdates is the index for validated tx updates in block meta data
@@ -91,6 +92,11 @@ func ComputeTxHash(metadata *common.BlockMetadata, txIndex int, txBytes []byte) 
 }
 
 func Validate(tIdx int, env []byte, metadata *common.BlockMetadata, logger *flogging.FabricLogger) peer.TxValidationCode {
+	if metadata == nil {
+		logger.Debugf("metadata is nil")
+		return peer.TxValidationCode_INVALID_OTHER_REASON
+	}
+
 	if len(metadata.Metadata) <= BlockMetadataIndex_ValidatedTxUpdates {
 		logger.Debugf("no validated tx updates in metadata")
 		return peer.TxValidationCode_INVALID_OTHER_REASON

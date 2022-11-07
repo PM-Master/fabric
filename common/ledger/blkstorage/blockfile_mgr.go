@@ -14,9 +14,9 @@ import (
 	"sync/atomic"
 
 	"github.com/hyperledger/fabric/common/ledger"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/snapshot"
 	"github.com/hyperledger/fabric/msp"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/proto"
@@ -48,10 +48,10 @@ type blockfileMgr struct {
 	currentFileWriter         *blockfileWriter
 	bcInfo                    atomic.Value
 
-	ledgerType     ledger.Type
+	ledgerType     redledger.Type
 	blockmatrixMgr *blockmatrixMgr
-
-	signer msp.SigningIdentity
+	indexConfig    *IndexConfig
+	signer         msp.SigningIdentity
 }
 
 /*
@@ -101,7 +101,7 @@ func newBlockmatrixBlockfileMgr(id string, conf *Conf, indexConfig *IndexConfig,
 		return nil, fmt.Errorf("error initializing blockmatrix manager")
 	}
 
-	return &blockfileMgr{blockmatrixMgr: blockmatrixMgr, ledgerType: ledger.Blockmatrix}, nil
+	return &blockfileMgr{blockmatrixMgr: blockmatrixMgr, ledgerType: redledger.Blockmatrix}, nil
 }
 
 func newBlockfileMgr(id string, conf *Conf, indexConfig *IndexConfig, indexStore *leveldbhelper.DBHandle) (*blockfileMgr, error) {
@@ -111,7 +111,7 @@ func newBlockfileMgr(id string, conf *Conf, indexConfig *IndexConfig, indexStore
 	if err != nil {
 		panic(fmt.Sprintf("Error creating block storage root dir [%s]: %s", rootDir, err))
 	}
-	mgr := &blockfileMgr{rootDir: rootDir, conf: conf, db: indexStore}
+	mgr := &blockfileMgr{rootDir: rootDir, conf: conf, db: indexStore, indexConfig: indexConfig}
 
 	blockfilesInfo, err := mgr.loadBlkfilesInfo()
 	if err != nil {
@@ -528,10 +528,10 @@ func (mgr *blockfileMgr) getBlockchainInfo() *common.BlockchainInfo {
 	return mgr.bcInfo.Load().(*common.BlockchainInfo)
 }
 
-func (mgr *blockfileMgr) getBlockmatrixInfo() *blockmatrix.Info {
+func (mgr *blockfileMgr) getBlockmatrixInfo() *redledger.Info {
 	if !mgr.isBlockmatrix() {
 		logger.Errorf("cannot get blockmatrix info for ledger that uses blockchain")
-		return &blockmatrix.Info{}
+		return &redledger.Info{}
 	}
 	return mgr.blockmatrixMgr.getBlockmatrixInfo()
 }

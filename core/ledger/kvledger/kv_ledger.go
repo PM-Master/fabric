@@ -9,7 +9,6 @@ package kvledger
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/hyperledger/fabric/common/ledger/blockmatrix"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -35,6 +34,7 @@ import (
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
 var logger = flogging.MustGetLogger("kvledger")
@@ -520,7 +520,7 @@ func (l *kvLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 }
 
 // GetBlockmatrixInfo returns basic info about blockchain
-func (l *kvLedger) GetBlockmatrixInfo() (*blockmatrix.Info, error) {
+func (l *kvLedger) GetBlockmatrixInfo() (*redledger.Info, error) {
 	l.blockAPIsRWLock.RLock()
 	defer l.blockAPIsRWLock.RUnlock()
 	return l.blockStore.GetBlockmatrixInfo()
