@@ -1,2 +1,0 @@
-Committed chaincode definition for chaincode 'DBM-chaincode' on channel 'dbmchannel':
-Version: 9, Sequence: 9, Endorsement Plugin: escc, Validation Plugin: vscc, Approvals: [Org1MSP: true, Org2MSP: true]
