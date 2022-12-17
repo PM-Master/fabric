@@ -36,6 +36,7 @@ import (
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
 var logger = flogging.MustGetLogger("kvledger")
@@ -521,6 +522,20 @@ func (l *kvLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 	defer l.blockAPIsRWLock.RUnlock()
 	bcInfo, err := l.blockStore.GetBlockchainInfo()
 	return bcInfo, err
+}
+
+// GetBlockmatrixInfo returns basic info about blockchain
+func (l *kvLedger) GetBlockmatrixInfo() (*redledger.Info, error) {
+	l.blockAPIsRWLock.RLock()
+	defer l.blockAPIsRWLock.RUnlock()
+	return l.blockStore.GetBlockmatrixInfo()
+}
+
+// GetBlocksUpdatedBy returns the blocks the given block updated, if any
+func (l *kvLedger) GetBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	l.blockAPIsRWLock.RLock()
+	defer l.blockAPIsRWLock.RUnlock()
+	return l.blockStore.GetBlocksUpdatedBy(blockNum)
 }
 
 // GetBlockByNumber returns block at a given height

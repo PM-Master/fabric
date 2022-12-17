@@ -710,6 +710,7 @@ func (s *idStore) getLedgerIDs(filterIn map[msgs.Status]struct{}) ([]string, err
 		}
 		if _, ok := filterIn[metadata.Status]; ok {
 			id := ledgerIDFromMetadataKey(itr.Key())
+			// DBM add ledger type
 			ids = append(ids, id)
 		}
 	}

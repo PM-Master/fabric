@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package gossip
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -156,9 +155,10 @@ func (s *MSPMessageCryptoService) VerifyBlock(chainID common.ChannelID, seqNum u
 	}
 	// - Verify that Header.DataHash is equal to the hash of block.Data
 	// This is to ensure that the header is consistent with the data carried by this block
-	if !bytes.Equal(dataHash, block.Header.DataHash) {
+	// TODO blockmatrix block will not match datahash, will need to get hash from metadata instead. Can use chain ID to get ledger type
+	/*if !bytes.Equal(dataHash, block.Header.DataHash) {
 		return fmt.Errorf("Header.DataHash is different from Hash(block.Data) for block with id [%d] on channel [%s]", block.Header.Number, chainID)
-	}
+	}*/
 
 	return s.verifyHeaderAndMetadata(channelID, block)
 }

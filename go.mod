@@ -34,6 +34,7 @@ require (
 	github.com/stretchr/testify v1.8.4 // includes ErrorContains
 	github.com/syndtr/goleveldb v1.0.1-0.20210305035536-64b5b1c73954
 	github.com/tedsuo/ifrit v0.0.0-20220120221754-dd274de71113
+	github.com/usnistgov/redledger-core v0.0.0-20221214030833-f3782e20efec
 	go.etcd.io/etcd/client/pkg/v3 v3.5.9
 	go.etcd.io/etcd/raft/v3 v3.5.9
 	go.etcd.io/etcd/server/v3 v3.5.9

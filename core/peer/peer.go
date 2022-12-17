@@ -39,6 +39,7 @@ import (
 	mspmgmt "github.com/hyperledger/fabric/msp/mgmt"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
 var peerLogger = flogging.MustGetLogger("peer")
@@ -190,7 +191,9 @@ func (p *Peer) CreateChannel(
 		return errors.WithMessage(err, "cannot create ledger from genesis block")
 	}
 
-	if err := p.createChannel(cid, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
+	ledgerType := redledger.GetLedgerType(cb)
+
+	if err := p.createChannel(cid, ledgerType, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
 		return err
 	}
 
@@ -205,8 +208,9 @@ func (p *Peer) CreateChannelFromSnapshot(
 	legacyLifecycleValidation plugindispatcher.LifecycleResources,
 	newLifecycleValidation plugindispatcher.CollectionAndLifecycleResources,
 ) error {
+	// TODO DBM blockmatrix does not support snapshot
 	channelCallback := func(l ledger.PeerLedger, cid string) {
-		if err := p.createChannel(cid, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
+		if err := p.createChannel(cid, redledger.Blockchain, l, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation); err != nil {
 			logger.Errorf("error creating channel for %s", cid)
 			return
 		}
@@ -234,6 +238,7 @@ func RetrievePersistedChannelConfig(ledger ledger.PeerLedger) (*common.Config, e
 // createChannel creates a new channel object and insert it into the channels slice.
 func (p *Peer) createChannel(
 	cid string,
+	ledgerType redledger.Type,
 	l ledger.PeerLedger,
 	deployedCCInfoProvider ledger.DeployedChaincodeInfoProvider,
 	legacyLifecycleValidation plugindispatcher.LifecycleResources,
@@ -308,6 +313,14 @@ func (p *Peer) createChannel(
 	)
 
 	committer := committer.NewLedgerCommitter(l)
+	// TODO DBM add getBlockmatrixInfo to committer
+	// pass that function to NewTxValidator (probably need to pass to v14 aswell)
+	// we will use it to get the row/col hash for the block being validated
+
+	// have a method called check block hash that passes the current block's *data hash*
+	// this will call a blockmatrix function in blkstorage to simulate putting the block in and calculate the row and column hash
+	// verify that the computed hash matches the hash in the blocks header which was written by the orderer
+	// we can even sign the row/col hashes as the orderer to ensure that it wasn't tampered with?
 	validator := &txvalidator.ValidationRouter{
 		CapabilityProvider: channel,
 		V14Validator: validatorv14.NewTxValidator(
@@ -333,6 +346,7 @@ func (p *Peer) createChannel(
 			p.pluginMapper,
 			policies.PolicyManagerGetterFunc(p.GetPolicyManager),
 			p.CryptoProvider,
+			ledgerType,
 		),
 	}
 
@@ -501,8 +515,17 @@ func (p *Peer) Initialize(
 			peerLogger.Debugf("Error while loading ledger %s with message %s. We continue to the next ledger rather than abort.", cid, err)
 			continue
 		}
+
+		// retrieve the genesis block from the ledger to determine ledger type
+		genesisBlock, err := ledger.GetBlockByNumber(0)
+		if err != nil {
+			return
+		}
+
+		ledgerType := redledger.GetLedgerType(genesisBlock)
+
 		// Create a chain if we get a valid ledger with config block
-		err = p.createChannel(cid, ledger, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation)
+		err = p.createChannel(cid, ledgerType, ledger, deployedCCInfoProvider, legacyLifecycleValidation, newLifecycleValidation)
 		if err != nil {
 			peerLogger.Errorf("Failed to load chain %s(%s)", cid, err)
 			peerLogger.Debugf("Error reloading chain %s with message %s. We continue to the next chain rather than abort.", cid, err)

@@ -14,8 +14,14 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-protos-go/common"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
+	capabilities2 "github.com/hyperledger/fabric/common/capabilities"
+	cc "github.com/hyperledger/fabric/common/channelconfig"
 	"github.com/hyperledger/fabric/common/configtx/test"
 	"github.com/hyperledger/fabric/common/crypto"
+	"github.com/hyperledger/fabric/common/genesis"
+	"github.com/hyperledger/fabric/core/config/configtest"
+	"github.com/hyperledger/fabric/internal/configtxgen/encoder"
+	"github.com/hyperledger/fabric/internal/configtxgen/genesisconfig"
 	"github.com/hyperledger/fabric/internal/pkg/txflags"
 
 	"github.com/hyperledger/fabric/common/ledger/testutil/fakes"
@@ -80,6 +86,32 @@ func NewBlockGenerator(t *testing.T, ledgerID string, signTxs bool) (*BlockGener
 	return &BlockGenerator{1, protoutil.BlockHeaderHash(gb.GetHeader()), signTxs, t}, gb
 }
 
+// NewBlockMatrixGenerator instantiates new BlockGenerator for testing with a block matrix
+func NewBlockMatrixGenerator(t *testing.T, ledgerID string, signTxs bool) (*BlockGenerator, *common.Block) {
+	gb := makeMatrixGenesisBlock(t, ledgerID)
+	return &BlockGenerator{1, protoutil.BlockHeaderHash(gb.GetHeader()), signTxs, t}, gb
+}
+
+func makeMatrixGenesisBlock(t *testing.T, ledgerid string) *common.Block {
+	profile := genesisconfig.Load(genesisconfig.SampleDevModeSoloProfile, configtest.GetDevConfigDir())
+	channelGroup, err := encoder.NewChannelGroup(profile)
+	require.NoError(t, err)
+
+	channelGroup.Values[cc.CapabilitiesKey] = &common.ConfigValue{
+		Value: protoutil.MarshalOrPanic(
+			cc.CapabilitiesValue(map[string]bool{
+				capabilities2.ApplicationV2_0: true,
+			}).Value(),
+		),
+	}
+
+	gb := genesis.NewFactoryImpl(channelGroup).Block(ledgerid)
+	txsFilter := txflags.NewWithValues(len(gb.Data.Data), pb.TxValidationCode_VALID)
+	gb.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER] = txsFilter
+
+	return gb
+}
+
 // NextBlock constructs next block in sequence that includes a number of transactions - one per simulationResults
 func (bg *BlockGenerator) NextBlock(simulationResults [][]byte) *common.Block {
 	block := ConstructBlock(bg.t, bg.blockNum, bg.previousHash, simulationResults, bg.signTxs)
@@ -111,6 +143,18 @@ func (bg *BlockGenerator) NextTestBlock(numTx int, txSize int) *common.Block {
 
 // NextTestBlocks constructs 'numBlocks' number of blocks for testing
 func (bg *BlockGenerator) NextTestBlocks(numBlocks int) []*common.Block {
+	blocks := []*common.Block{}
+	numTx := 10
+	for i := 0; i < numBlocks; i++ {
+		block := bg.NextTestBlock(numTx, 100)
+		block.Metadata.Metadata[common.BlockMetadataIndex_TRANSACTIONS_FILTER] = txflags.NewWithValues(numTx, pb.TxValidationCode_VALID)
+		blocks = append(blocks, block)
+	}
+	return blocks
+}
+
+// NextTestBlocks constructs 'numBlocks' number of blocks for testing
+func (bg *BlockGenerator) NextTestBlocksWithGenesis(numBlocks int) []*common.Block {
 	blocks := []*common.Block{}
 	numTx := 10
 	for i := 0; i < numBlocks; i++ {
@@ -290,6 +334,15 @@ func ConstructTestBlocks(t *testing.T, numBlocks int) []*common.Block {
 		blocks = append(blocks, gb)
 	}
 	return append(blocks, bg.NextTestBlocks(numBlocks-1)...)
+}
+
+func ConstructTestMatrixBlocks(t *testing.T, numBlocks int) []*common.Block {
+	bg, gb := NewBlockMatrixGenerator(t, "testchannelid", false)
+	blocks := []*common.Block{}
+	if numBlocks != 0 {
+		blocks = append(blocks, gb)
+	}
+	return append(blocks, bg.NextTestBlocksWithGenesis(numBlocks-1)...)
 }
 
 // ConstructBytesProposalResponsePayload constructs a ProposalResponse byte with given chaincode version and simulationResults for testing

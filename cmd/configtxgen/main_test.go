@@ -85,7 +85,7 @@ func TestMissingConsortiumValue(t *testing.T) {
 	config := genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir())
 	config.Consortium = ""
 
-	require.EqualError(t, doOutputChannelCreateTx(config, nil, "foo", configTxDest), "config update generation failure: cannot define a new channel with no Consortium value")
+	require.EqualError(t, doOutputChannelCreateTx(config, nil, "foo", false, configTxDest), "config update generation failure: cannot define a new channel with no Consortium value")
 }
 
 func TestUnsuccessfulChannelTxFileCreation(t *testing.T) {
@@ -95,7 +95,7 @@ func TestUnsuccessfulChannelTxFileCreation(t *testing.T) {
 	require.NoError(t, os.WriteFile(configTxDest, []byte{}, 0o440))
 	defer os.Remove(configTxDest)
 
-	require.EqualError(t, doOutputChannelCreateTx(config, nil, "foo", configTxDest), fmt.Sprintf("error writing channel create tx: open %s: permission denied", configTxDest))
+	require.EqualError(t, doOutputChannelCreateTx(config, nil, "foo", false, configTxDest), fmt.Sprintf("error writing channel create tx: open %s: permission denied", configTxDest))
 }
 
 func TestMissingApplicationValue(t *testing.T) {
@@ -104,7 +104,7 @@ func TestMissingApplicationValue(t *testing.T) {
 	config := genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir())
 	config.Application = nil
 
-	require.EqualError(t, doOutputChannelCreateTx(config, nil, "foo", configTxDest), "could not generate default config template: channel template configs must contain an application section")
+	require.EqualError(t, doOutputChannelCreateTx(config, nil, "foo", false, configTxDest), "could not generate default config template: channel template configs must contain an application section")
 }
 
 func TestInspectMissingConfigTx(t *testing.T) {
@@ -116,7 +116,7 @@ func TestInspectConfigTx(t *testing.T) {
 
 	config := genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir())
 
-	require.NoError(t, doOutputChannelCreateTx(config, nil, "foo", configTxDest), "Good outputChannelCreateTx generation request")
+	require.NoError(t, doOutputChannelCreateTx(config, nil, "foo", false, configTxDest), "Good outputChannelCreateTx generation request")
 	require.NoError(t, doInspectChannelCreateTx(configTxDest), "Good configtx inspection request")
 }
 

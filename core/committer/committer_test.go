@@ -7,7 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package committer
 
 import (
+	"fmt"
 	"testing"
+
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
@@ -38,6 +41,16 @@ func (m *mockLedger) GetBlockchainInfo() (*common.BlockchainInfo, error) {
 		PreviousBlockHash: m.previousHash,
 	}
 	return info, nil
+}
+
+func (m *mockLedger) GetBlockmatrixInfo() (*redledger.Info, error) {
+	// TODO DBM - implement GetBlockmatrixInfo for mockLedger.  Need to add DBM specific variables to mockLedger.
+	return &redledger.Info{}, fmt.Errorf("GetBlockmatrixInfo not implemented for mockLedger")
+}
+
+func (m *mockLedger) GetBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	// TODO DBM - implement GetBlockmatrixInfo for mockLedger.  Need to add DBM specific variables to mockLedger.
+	return nil, fmt.Errorf("GetBlockmatrixInfo not implemented for mockLedger")
 }
 
 func (m *mockLedger) DoesPvtDataInfoExist(blkNum uint64) (bool, error) {

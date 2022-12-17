@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
+
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset"
@@ -190,6 +192,7 @@ func setupValidatorWithMspMgr(mspmgr msp.MSPManager, mockID *supportmocks.Identi
 		pm,
 		mockCpmg,
 		cryptoProvider,
+		redledger.Blockchain,
 	)
 
 	return v, mockQE, mockID, mockCR
@@ -647,10 +650,12 @@ func testCCEventBadBytes(t *testing.T, v txvalidator.Validator, ccID string) {
 }
 
 func testCCEventGoodPath(t *testing.T, v txvalidator.Validator, ccID string) {
-	tx := getEnv(ccID, protoutil.MarshalOrPanic(&peer.ChaincodeEvent{ChaincodeId: ccID}), createRWset(t), t)
+	tx := getEnv(ccID, protoutil.MarshalOrPanic(&peer.ChaincodeEvent{ChaincodeId: ccID}), createRWset(t, ccID), t)
 	b := &common.Block{Data: &common.BlockData{Data: [][]byte{protoutil.MarshalOrPanic(tx)}}, Header: &common.BlockHeader{Number: 2}}
+	err := rewriteBlockData(b)
+	require.NoError(t, err)
 
-	err := v.Validate(b)
+	err = v.Validate(b)
 	require.NoError(t, err)
 	assertValid(b, t)
 }
@@ -1096,6 +1101,7 @@ func TestValidationInvalidEndorsing(t *testing.T) {
 		pm,
 		mockCpmg,
 		cryptoProvider,
+		redledger.Blockchain,
 	)
 
 	tx := getEnv(ccID, nil, createRWset(t, ccID), t)
@@ -1170,6 +1176,7 @@ func TestValidationPluginExecutionError(t *testing.T) {
 		pm,
 		mockCpmg,
 		cryptoProvider,
+		redledger.Blockchain,
 	)
 
 	tx := getEnv(ccID, nil, createRWset(t, ccID), t)
@@ -1223,6 +1230,7 @@ func TestValidationPluginNotFound(t *testing.T) {
 		pm,
 		mockCpmg,
 		cryptoProvider,
+		redledger.Blockchain,
 	)
 
 	tx := getEnv(ccID, nil, createRWset(t, ccID), t)
@@ -1264,6 +1272,8 @@ func TestMain(m *testing.M) {
 		os.Exit(-1)
 		return
 	}
+
+	fmt.Println("signerSerialized", signerSerialized)
 
 	os.Exit(m.Run())
 }

@@ -77,5 +77,6 @@ func TestOrgSpecificOrdererEndpoints(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NotEmpty(t, cc.OrdererConfig().Organizations()["SampleOrg"].Endpoints)
+		require.NoError(t, cc.Capabilities().Supported())
 	})
 }

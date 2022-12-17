@@ -37,6 +37,7 @@ var attrsToIndex = []IndexableAttr{
 	IndexableAttrBlockNum,
 	IndexableAttrTxID,
 	IndexableAttrBlockNumTranNum,
+	IndexableAttrKeyBlockNums,
 }
 
 func newTestEnv(t testing.TB, conf *Conf) *testEnv {

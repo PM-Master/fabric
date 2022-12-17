@@ -4,6 +4,7 @@ package mocks
 import (
 	"sync"
 
+	"github.com/hyperledger/fabric/common/ledger"
 	"github.com/hyperledger/fabric/msp"
 )
 
@@ -27,6 +28,16 @@ type ChannelCapabilities struct {
 	}
 	consensusTypeMigrationReturnsOnCall map[int]struct {
 		result1 bool
+	}
+	LedgerTypeStub        func() ledger.Type
+	ledgerTypeMutex       sync.RWMutex
+	ledgerTypeArgsForCall []struct {
+	}
+	ledgerTypeReturns struct {
+		result1 ledger.Type
+	}
+	ledgerTypeReturnsOnCall map[int]struct {
+		result1 ledger.Type
 	}
 	MSPVersionStub        func() msp.MSPVersion
 	mSPVersionMutex       sync.RWMutex
@@ -165,6 +176,59 @@ func (fake *ChannelCapabilities) ConsensusTypeMigrationReturnsOnCall(i int, resu
 	}
 	fake.consensusTypeMigrationReturnsOnCall[i] = struct {
 		result1 bool
+	}{result1}
+}
+
+func (fake *ChannelCapabilities) LedgerType() ledger.Type {
+	fake.ledgerTypeMutex.Lock()
+	ret, specificReturn := fake.ledgerTypeReturnsOnCall[len(fake.ledgerTypeArgsForCall)]
+	fake.ledgerTypeArgsForCall = append(fake.ledgerTypeArgsForCall, struct {
+	}{})
+	stub := fake.LedgerTypeStub
+	fakeReturns := fake.ledgerTypeReturns
+	fake.recordInvocation("LedgerType", []interface{}{})
+	fake.ledgerTypeMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *ChannelCapabilities) LedgerTypeCallCount() int {
+	fake.ledgerTypeMutex.RLock()
+	defer fake.ledgerTypeMutex.RUnlock()
+	return len(fake.ledgerTypeArgsForCall)
+}
+
+func (fake *ChannelCapabilities) LedgerTypeCalls(stub func() ledger.Type) {
+	fake.ledgerTypeMutex.Lock()
+	defer fake.ledgerTypeMutex.Unlock()
+	fake.LedgerTypeStub = stub
+}
+
+func (fake *ChannelCapabilities) LedgerTypeReturns(result1 ledger.Type) {
+	fake.ledgerTypeMutex.Lock()
+	defer fake.ledgerTypeMutex.Unlock()
+	fake.LedgerTypeStub = nil
+	fake.ledgerTypeReturns = struct {
+		result1 ledger.Type
+	}{result1}
+}
+
+func (fake *ChannelCapabilities) LedgerTypeReturnsOnCall(i int, result1 ledger.Type) {
+	fake.ledgerTypeMutex.Lock()
+	defer fake.ledgerTypeMutex.Unlock()
+	fake.LedgerTypeStub = nil
+	if fake.ledgerTypeReturnsOnCall == nil {
+		fake.ledgerTypeReturnsOnCall = make(map[int]struct {
+			result1 ledger.Type
+		})
+	}
+	fake.ledgerTypeReturnsOnCall[i] = struct {
+		result1 ledger.Type
 	}{result1}
 }
 
@@ -334,6 +398,8 @@ func (fake *ChannelCapabilities) Invocations() map[string][][]interface{} {
 	defer fake.consensusTypeBFTMutex.RUnlock()
 	fake.consensusTypeMigrationMutex.RLock()
 	defer fake.consensusTypeMigrationMutex.RUnlock()
+	fake.ledgerTypeMutex.RLock()
+	defer fake.ledgerTypeMutex.RUnlock()
 	fake.mSPVersionMutex.RLock()
 	defer fake.mSPVersionMutex.RUnlock()
 	fake.orgSpecificOrdererEndpointsMutex.RLock()

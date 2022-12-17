@@ -53,13 +53,15 @@ func doOutputBlock(config *genesisconfig.Profile, channelID string, outputBlock 
 	return nil
 }
 
-func doOutputChannelCreateTx(conf, baseProfile *genesisconfig.Profile, channelID string, outputChannelCreateTx string) error {
-	logger.Info("Generating new channel configtx")
+func doOutputChannelCreateTx(conf, baseProfile *genesisconfig.Profile, channelID string, isBlockmatrix bool, outputChannelCreateTx string) error {
+	logger.Info("Generating new channel configtx", conf.Capabilities)
+
+	// DBM blockmatrix form configtx.yaml is here in conf
 
 	var configtx *cb.Envelope
 	var err error
 	if baseProfile == nil {
-		configtx, err = encoder.MakeChannelCreationTransaction(channelID, nil, conf)
+		configtx, err = encoder.MakeChannelCreationTransaction(channelID, isBlockmatrix, nil, conf)
 	} else {
 		configtx, err = encoder.MakeChannelCreationTransactionWithSystemChannelContext(channelID, nil, conf, baseProfile)
 	}
@@ -159,10 +161,11 @@ func dirExists(path string) (bool, error) {
 }
 
 func main() {
-	var outputBlock, outputChannelCreateTx, channelCreateTxBaseProfile, profile, configPath, channelID, inspectBlock, inspectChannelCreateTx, asOrg, printOrg string
+	var outputBlock, outputChannelCreateTx, channelCreateTxBaseProfile, profile, configPath, channelID, ledgerType, inspectBlock, inspectChannelCreateTx, asOrg, printOrg string
 
 	flag.StringVar(&outputBlock, "outputBlock", "", "The path to write the genesis block to (if set)")
 	flag.StringVar(&channelID, "channelID", "", "The channel ID to use in the configtx")
+	flag.StringVar(&ledgerType, "ledgerType", "", "Configure channel to use a blockchain (default) or blockmatrix")
 	flag.StringVar(&outputChannelCreateTx, "outputCreateChannelTx", "", "[DEPRECATED] The path to write a channel creation configtx to (if set)")
 	flag.StringVar(&channelCreateTxBaseProfile, "channelCreateTxBaseProfile", "", "[DEPRECATED] Specifies a profile to consider as the orderer system channel current state to allow modification of non-application parameters during channel create tx generation. Only valid in conjunction with 'outputCreateChannelTx'.")
 	flag.StringVar(&profile, "profile", "", "The profile from configtx.yaml to use for generation.")
@@ -241,8 +244,9 @@ func main() {
 		}
 	}
 
+	// dbm
 	if outputChannelCreateTx != "" {
-		if err := doOutputChannelCreateTx(profileConfig, baseProfile, channelID, outputChannelCreateTx); err != nil {
+		if err := doOutputChannelCreateTx(profileConfig, baseProfile, channelID, ledgerType == "blockmatrix", outputChannelCreateTx); err != nil {
 			logger.Fatalf("Error on outputChannelCreateTx: %s", err)
 		}
 	}

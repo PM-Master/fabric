@@ -13,14 +13,20 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/hyperledger/fabric/common/ledger"
+	"github.com/hyperledger/fabric/common/ledger/snapshot"
+	"github.com/hyperledger/fabric/msp"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/golang/protobuf/proto"
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
+	"github.com/pkg/errors"
+
 	"github.com/hyperledger/fabric/common/ledger/util/leveldbhelper"
 	"github.com/hyperledger/fabric/internal/fileutil"
 	"github.com/hyperledger/fabric/protoutil"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -43,6 +49,11 @@ type blockfileMgr struct {
 	currentFileWriter         *blockfileWriter
 	bcInfo                    atomic.Value
 	cache                     *cache
+
+	ledgerType     redledger.Type
+	blockmatrixMgr *blockmatrixMgr
+	indexConfig    *IndexConfig
+	signer         msp.SigningIdentity
 }
 
 /*
@@ -91,6 +102,15 @@ At start up a new manager:
 			-- If index and file system are not in sync, syncs index from the FS
 	  *)  Updates blockchain info used by the APIs
 */
+func newBlockmatrixBlockfileMgr(id string, conf *Conf, indexConfig *IndexConfig, provider *leveldbhelper.Provider) (*blockfileMgr, error) {
+	blockmatrixMgr, err := newBlockmatrixMgr(id, conf, indexConfig, provider)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing blockmatrix manager")
+	}
+
+	return &blockfileMgr{blockmatrixMgr: blockmatrixMgr, ledgerType: redledger.Blockmatrix}, nil
+}
+
 func newBlockfileMgr(id string, conf *Conf, indexConfig *IndexConfig, indexStore *leveldbhelper.DBHandle) (*blockfileMgr, error) {
 	logger.Debugf("newBlockfileMgr() initializing file-based block storage for ledger: %s ", id)
 	rootDir := conf.getLedgerBlockDir(id)
@@ -98,7 +118,7 @@ func newBlockfileMgr(id string, conf *Conf, indexConfig *IndexConfig, indexStore
 	if err != nil {
 		panic(fmt.Sprintf("Error creating block storage root dir [%s]: %s", rootDir, err))
 	}
-	mgr := &blockfileMgr{rootDir: rootDir, conf: conf, db: indexStore, cache: newCache(defaultBlockCacheSizeBytes)}
+	mgr := &blockfileMgr{rootDir: rootDir, conf: conf, db: indexStore, cache: newCache(defaultBlockCacheSizeBytes), indexConfig: indexConfig}
 
 	blockfilesInfo, err := mgr.loadBlkfilesInfo()
 	if err != nil {
@@ -175,6 +195,8 @@ func bootstrapFromSnapshottedTxIDs(
 	conf *Conf,
 	indexStore *leveldbhelper.DBHandle,
 ) error {
+	// TODO there will be an error when calling this function on a ledger configured to use blockmatrix
+
 	rootDir := conf.getLedgerBlockDir(ledgerID)
 	isEmpty, err := fileutil.CreateDirIfMissing(rootDir)
 	if err != nil {
@@ -249,12 +271,26 @@ func syncBlockfilesInfoFromFS(rootDir string, blkfilesInfo *blockfilesInfo) {
 	logger.Debugf("blockfilesInfo after updates by scanning the last file segment:%s", blkfilesInfo)
 }
 
+func (mgr *blockfileMgr) exportUniqueTxIDs(dir string, newHashFunc snapshot.NewHashFunc) (map[string][]byte, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.exportUniqueTxIDs(dir, newHashFunc)
+	}
+
+	return mgr.index.exportUniqueTxIDs(dir, newHashFunc)
+}
+
 func deriveBlockfilePath(rootDir string, suffixNum int) string {
 	return rootDir + "/" + blockfilePrefix + fmt.Sprintf("%06d", suffixNum)
 }
 
 func (mgr *blockfileMgr) close() {
-	mgr.currentFileWriter.close()
+	if mgr.currentFileWriter != nil {
+		mgr.currentFileWriter.close()
+	}
+
+	if mgr.blockmatrixMgr != nil {
+		mgr.blockmatrixMgr.close()
+	}
 }
 
 func (mgr *blockfileMgr) moveToNextFile() {
@@ -278,7 +314,15 @@ func (mgr *blockfileMgr) moveToNextFile() {
 	mgr.updateBlockfilesInfo(blkfilesInfo)
 }
 
+func (mgr *blockfileMgr) isBlockmatrix() bool {
+	return mgr.ledgerType.IsBlockmatrix()
+}
+
 func (mgr *blockfileMgr) addBlock(block *common.Block) error {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.addBlock(block)
+	}
+
 	bcInfo := mgr.getBlockchainInfo()
 	if block.Header.Number != bcInfo.Height {
 		return errors.Errorf(
@@ -487,7 +531,25 @@ func (mgr *blockfileMgr) syncIndex() error {
 }
 
 func (mgr *blockfileMgr) getBlockchainInfo() *common.BlockchainInfo {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.getBlockchainInfo()
+	}
 	return mgr.bcInfo.Load().(*common.BlockchainInfo)
+}
+
+func (mgr *blockfileMgr) getBlockmatrixInfo() *redledger.Info {
+	if !mgr.isBlockmatrix() {
+		logger.Errorf("cannot get blockmatrix info for ledger that uses blockchain")
+		return &redledger.Info{}
+	}
+	return mgr.blockmatrixMgr.getBlockmatrixInfo()
+}
+
+func (mgr *blockfileMgr) getBlocksUpdatedBy(blockNum uint64) ([]uint64, error) {
+	if !mgr.isBlockmatrix() {
+		return nil, fmt.Errorf("cannot get blockmatrix info for ledger that uses blockchain")
+	}
+	return mgr.blockmatrixMgr.getBlocksUpdatedBy(blockNum)
 }
 
 func (mgr *blockfileMgr) updateBlockfilesInfo(blkfilesInfo *blockfilesInfo) {
@@ -511,6 +573,10 @@ func (mgr *blockfileMgr) updateBlockchainInfo(latestBlockHash []byte, latestBloc
 }
 
 func (mgr *blockfileMgr) retrieveBlockByHash(blockHash []byte) (*common.Block, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveBlockByHash(blockHash)
+	}
+
 	logger.Debugf("retrieveBlockByHash() - blockHash = [%#v]", blockHash)
 	loc, err := mgr.index.getBlockLocByHash(blockHash)
 	if err != nil {
@@ -520,6 +586,10 @@ func (mgr *blockfileMgr) retrieveBlockByHash(blockHash []byte) (*common.Block, e
 }
 
 func (mgr *blockfileMgr) retrieveBlockByNumber(blockNum uint64) (*common.Block, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveBlockByNumber(blockNum)
+	}
+
 	logger.Debugf("retrieveBlockByNumber() - blockNum = [%d]", blockNum)
 
 	// interpret math.MaxUint64 as a request for last block
@@ -540,6 +610,10 @@ func (mgr *blockfileMgr) retrieveBlockByNumber(blockNum uint64) (*common.Block, 
 }
 
 func (mgr *blockfileMgr) retrieveBlockByTxID(txID string) (*common.Block, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveBlockByTxID(txID)
+	}
+
 	logger.Debugf("retrieveBlockByTxID() - txID = [%s]", txID)
 	loc, err := mgr.index.getBlockLocByTxID(txID)
 	if err == errNilValue {
@@ -555,6 +629,10 @@ func (mgr *blockfileMgr) retrieveBlockByTxID(txID string) (*common.Block, error)
 
 func (mgr *blockfileMgr) retrieveTxValidationCodeByTxID(txID string) (peer.TxValidationCode, uint64, error) {
 	logger.Debugf("retrieveTxValidationCodeByTxID() - txID = [%s]", txID)
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveTxValidationCodeByTxID(txID)
+	}
+
 	validationCode, blkNum, err := mgr.index.getTxValidationCodeByTxID(txID)
 	if err == errNilValue {
 		return peer.TxValidationCode(-1), 0, errors.Errorf(
@@ -565,6 +643,10 @@ func (mgr *blockfileMgr) retrieveTxValidationCodeByTxID(txID string) (peer.TxVal
 }
 
 func (mgr *blockfileMgr) retrieveBlockHeaderByNumber(blockNum uint64) (*common.BlockHeader, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveBlockHeaderByNumber(blockNum)
+	}
+
 	logger.Debugf("retrieveBlockHeaderByNumber() - blockNum = [%d]", blockNum)
 	if blockNum < mgr.firstPossibleBlockNumberInBlockFiles() {
 		return nil, errors.Errorf(
@@ -587,21 +669,30 @@ func (mgr *blockfileMgr) retrieveBlockHeaderByNumber(blockNum uint64) (*common.B
 	return info.blockHeader, nil
 }
 
-func (mgr *blockfileMgr) retrieveBlocks(startNum uint64) (*blocksItr, error) {
+func (mgr *blockfileMgr) retrieveBlocks(startNum uint64) (ledger.ResultsIterator, error) {
 	if startNum < mgr.firstPossibleBlockNumberInBlockFiles() {
 		return nil, errors.Errorf(
 			"cannot serve block [%d]. The ledger is bootstrapped from a snapshot. First available block = [%d]",
 			startNum, mgr.firstPossibleBlockNumberInBlockFiles(),
 		)
 	}
+
 	return newBlockItr(mgr, startNum), nil
 }
 
 func (mgr *blockfileMgr) txIDExists(txID string) (bool, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.txIDExists(txID)
+	}
+
 	return mgr.index.txIDExists(txID)
 }
 
 func (mgr *blockfileMgr) retrieveTransactionByID(txID string) (*common.Envelope, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveTransactionByID(txID)
+	}
+
 	logger.Debugf("retrieveTransactionByID() - txId = [%s]", txID)
 	loc, err := mgr.index.getTxLoc(txID)
 	if err == errNilValue {
@@ -616,6 +707,10 @@ func (mgr *blockfileMgr) retrieveTransactionByID(txID string) (*common.Envelope,
 }
 
 func (mgr *blockfileMgr) retrieveTransactionByBlockNumTranNum(blockNum uint64, tranNum uint64) (*common.Envelope, error) {
+	if mgr.isBlockmatrix() {
+		return mgr.blockmatrixMgr.retrieveTransactionByBlockNumTranNum(blockNum, tranNum)
+	}
+
 	logger.Debugf("retrieveTransactionByBlockNumTranNum() - blockNum = [%d], tranNum = [%d]", blockNum, tranNum)
 	if blockNum < mgr.firstPossibleBlockNumberInBlockFiles() {
 		return nil, errors.Errorf(

@@ -65,6 +65,7 @@ func ledgerConfig() *ledger.Config {
 			DeprioritizedDataReconcilerInterval: deprioritizedDataReconcilerInterval,
 			PurgedKeyAuditLogging:               purgedKeyAuditLogging,
 		},
+		// TODO DBM might want to add logis that IF blockmatrix then history db is DISABLED
 		HistoryDBConfig: &ledger.HistoryDBConfig{
 			Enabled: viper.GetBool("ledger.history.enableHistoryDatabase"),
 		},

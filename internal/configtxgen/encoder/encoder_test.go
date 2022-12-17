@@ -851,7 +851,7 @@ var _ = Describe("Encoder", func() {
 
 		Describe("NewChannelCreateConfigUpdate", func() {
 			It("translates the config into a config group", func() {
-				cg, err := encoder.NewChannelCreateConfigUpdate("channel-id", conf, template)
+				cg, err := encoder.NewChannelCreateConfigUpdate("channel-id", false, conf, template)
 				Expect(err).NotTo(HaveOccurred())
 				expected := &cb.ConfigUpdate{
 					ChannelId: "channel-id",
@@ -952,7 +952,7 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("reflects the additional modifications designated by the channel creation profile", func() {
-					cg, err := encoder.NewChannelCreateConfigUpdate("channel-id", conf, template)
+					cg, err := encoder.NewChannelCreateConfigUpdate("channel-id", false, conf, template)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(cg.WriteSet.Groups["Application"].Groups["SampleOrg"].Values["AnchorPeers"].Version).To(Equal(uint64(1)))
 				})
@@ -964,7 +964,7 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("returns an error", func() {
-					_, err := encoder.NewChannelCreateConfigUpdate("channel-id", conf, template)
+					_, err := encoder.NewChannelCreateConfigUpdate("channel-id", false, conf, template)
 					Expect(err).To(MatchError("could not turn parse profile into channel group: could not create application group: error adding policies to application group: unknown policy type: bad-type"))
 				})
 
@@ -974,7 +974,7 @@ var _ = Describe("Encoder", func() {
 					})
 
 					It("returns an error", func() {
-						_, err := encoder.NewChannelCreateConfigUpdate("channel-id", conf, template)
+						_, err := encoder.NewChannelCreateConfigUpdate("channel-id", false, conf, template)
 						Expect(err).To(MatchError("cannot define a new channel with no Application section"))
 					})
 				})
@@ -986,14 +986,14 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("returns an error", func() {
-					_, err := encoder.NewChannelCreateConfigUpdate("channel-id", conf, template)
+					_, err := encoder.NewChannelCreateConfigUpdate("channel-id", false, conf, template)
 					Expect(err).To(MatchError("cannot define a new channel with no Consortium value"))
 				})
 			})
 
 			Context("when an update cannot be computed", func() {
 				It("returns an error", func() {
-					_, err := encoder.NewChannelCreateConfigUpdate("channel-id", conf, nil)
+					_, err := encoder.NewChannelCreateConfigUpdate("channel-id", false, conf, nil)
 					Expect(err).To(MatchError("could not compute update: no channel group included for original config"))
 				})
 			})
@@ -1008,7 +1008,7 @@ var _ = Describe("Encoder", func() {
 			})
 
 			It("returns an encoded and signed tx", func() {
-				env, err := encoder.MakeChannelCreationTransaction("channel-id", fakeSigner, conf)
+				env, err := encoder.MakeChannelCreationTransaction("channel-id", false, fakeSigner, conf)
 				Expect(err).NotTo(HaveOccurred())
 				payload := &cb.Payload{}
 				err = proto.Unmarshal(env.Payload, payload)
@@ -1028,7 +1028,7 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("wraps and returns the error", func() {
-					_, err := encoder.MakeChannelCreationTransaction("channel-id", fakeSigner, conf)
+					_, err := encoder.MakeChannelCreationTransaction("channel-id", false, fakeSigner, conf)
 					Expect(err).To(MatchError("could not generate default config template: channel template configs must contain an application section"))
 				})
 			})
@@ -1039,7 +1039,7 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("wraps and returns the error", func() {
-					_, err := encoder.MakeChannelCreationTransaction("channel-id", fakeSigner, conf)
+					_, err := encoder.MakeChannelCreationTransaction("channel-id", false, fakeSigner, conf)
 					Expect(err).To(MatchError("creating signature header failed: serialize-error"))
 				})
 			})
@@ -1050,14 +1050,14 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("wraps and returns the error", func() {
-					_, err := encoder.MakeChannelCreationTransaction("channel-id", fakeSigner, conf)
+					_, err := encoder.MakeChannelCreationTransaction("channel-id", false, fakeSigner, conf)
 					Expect(err).To(MatchError("signature failure over config update: sign-error"))
 				})
 			})
 
 			Context("when no signer is provided", func() {
 				It("returns an encoded tx with no signature", func() {
-					_, err := encoder.MakeChannelCreationTransaction("channel-id", nil, conf)
+					_, err := encoder.MakeChannelCreationTransaction("channel-id", false, nil, conf)
 					Expect(err).NotTo(HaveOccurred())
 				})
 			})
@@ -1068,7 +1068,7 @@ var _ = Describe("Encoder", func() {
 				})
 
 				It("wraps and returns the error", func() {
-					_, err := encoder.MakeChannelCreationTransaction("channel-id", nil, conf)
+					_, err := encoder.MakeChannelCreationTransaction("channel-id", false, nil, conf)
 					Expect(err).To(MatchError("config update generation failure: cannot define a new channel with no Consortium value"))
 				})
 			})

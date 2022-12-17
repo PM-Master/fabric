@@ -177,7 +177,9 @@ func (p *Provider) GetDBHandle(dbName string) *DBHandle {
 
 // Close closes the underlying leveldb
 func (p *Provider) Close() {
-	p.db.Close()
+	if p.db != nil {
+		p.db.Close()
+	}
 }
 
 // Drop drops all the data for the given dbName

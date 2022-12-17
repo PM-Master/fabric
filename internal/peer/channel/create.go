@@ -61,6 +61,7 @@ func createCmd(cf *ChannelCmdFactory) *cobra.Command {
 func createChannelFromDefaults(cf *ChannelCmdFactory) (*cb.Envelope, error) {
 	chCrtEnv, err := encoder.MakeChannelCreationTransaction(
 		channelID,
+		false,
 		cf.Signer,
 		genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile),
 	)
@@ -95,6 +96,8 @@ func sanityCheckAndSignConfigTx(envConfigUpdate *cb.Envelope, signer identity.Si
 		return nil, InvalidCreateTx("could not unmarshall channel header")
 	}
 
+	fmt.Println(ch)
+
 	if ch.Type != int32(cb.HeaderType_CONFIG_UPDATE) {
 		return nil, InvalidCreateTx("bad type")
 	}
@@ -112,6 +115,9 @@ func sanityCheckAndSignConfigTx(envConfigUpdate *cb.Envelope, signer identity.Si
 	if ch.ChannelId != channelID {
 		return nil, InvalidCreateTx(fmt.Sprintf("mismatched channel ID %s != %s", ch.ChannelId, channelID))
 	}
+
+	// DBM get extension from channel header
+	// fmt.Println("LEDGER TYPE IS ", ledgerType.Type)
 
 	configUpdateEnv, err := configtx.UnmarshalConfigUpdateEnvelope(payload.Data)
 	if err != nil {
@@ -134,6 +140,7 @@ func sanityCheckAndSignConfigTx(envConfigUpdate *cb.Envelope, signer identity.Si
 
 	configUpdateEnv.Signatures = append(configUpdateEnv.Signatures, configSig)
 
+	// DBM could also add Header types to denote blockmatrix config update
 	return protoutil.CreateSignedEnvelope(cb.HeaderType_CONFIG_UPDATE, channelID, signer, configUpdateEnv, 0, 0)
 }
 
