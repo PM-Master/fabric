@@ -22,7 +22,7 @@ import (
 func TestValidateConfigTx(t *testing.T) {
 	channelID := "testchannelid"
 	profile := genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile, configtest.GetDevConfigDir())
-	chCrtEnv, err := encoder.MakeChannelCreationTransaction(genesisconfig.SampleConsortiumName, nil, profile)
+	chCrtEnv, err := encoder.MakeChannelCreationTransaction(genesisconfig.SampleConsortiumName, false, nil, profile)
 	if err != nil {
 		t.Fatalf("MakeChannelCreationTransaction failed, err %s", err)
 		return

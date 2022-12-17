@@ -28,6 +28,7 @@ const (
 	IndexableAttrBlockHash       = IndexableAttr("BlockHash")
 	IndexableAttrTxID            = IndexableAttr("TxID")
 	IndexableAttrBlockNumTranNum = IndexableAttr("BlockNumTranNum")
+	IndexableAttrKeyBlockNums    = IndexableAttr("KeyBlockNums")
 )
 
 // IndexConfig - a configuration that includes a list of attributes that should be indexed
@@ -42,6 +43,15 @@ type SnapshotInfo struct {
 	PreviousBlockHash []byte
 }
 
+type BlockstoreProvider interface {
+	Open(ledgerid string) (*BlockStore, error)
+	ImportFromSnapshot(ledgerID string, snapshotDir string, snapshotInfo *SnapshotInfo) error
+	Exists(ledgerid string) (bool, error)
+	Drop(ledgerid string) error
+	List() ([]string, error)
+	Close()
+}
+
 // Contains returns true iff the supplied parameter is present in the IndexConfig.AttrsToIndex
 func (c *IndexConfig) Contains(indexableAttr IndexableAttr) bool {
 	for _, a := range c.AttrsToIndex {
@@ -54,10 +64,11 @@ func (c *IndexConfig) Contains(indexableAttr IndexableAttr) bool {
 
 // BlockStoreProvider provides handle to block storage - this is not thread-safe
 type BlockStoreProvider struct {
-	conf            *Conf
-	indexConfig     *IndexConfig
-	leveldbProvider *leveldbhelper.Provider
-	stats           *stats
+	conf              *Conf
+	indexConfig       *IndexConfig
+	leveldbProvider   *leveldbhelper.Provider
+	stats             *stats
+	ledgerDBProviders map[string]*leveldbhelper.Provider
 }
 
 // NewProvider constructs a filesystem based block store provider
@@ -84,14 +95,34 @@ func NewProvider(conf *Conf, indexConfig *IndexConfig, metricsProvider metrics.P
 		}
 	}
 
+	dirPath = conf.getMatricesDir()
+	if _, err := os.Stat(dirPath); err != nil {
+		if !os.IsNotExist(err) { // NotExist is the only permitted error type
+			return nil, errors.Wrapf(err, "failed to read matrix ledger directory %s", dirPath)
+		}
+
+		logger.Info("Creating new matrix ledger directory at", dirPath)
+		if err = os.MkdirAll(dirPath, 0755); err != nil {
+			return nil, errors.Wrapf(err, "failed to create ledger directory: %s", dirPath)
+		}
+	}
+
 	stats := newStats(metricsProvider)
-	return &BlockStoreProvider{conf, indexConfig, p, stats}, nil
+	return &BlockStoreProvider{
+		conf:              conf,
+		indexConfig:       indexConfig,
+		stats:             stats,
+		leveldbProvider:   p,
+		ledgerDBProviders: make(map[string]*leveldbhelper.Provider),
+	}, nil
 }
 
 // Open opens a block store for given ledgerid.
 // If a blockstore is not existing, this method creates one
 // This method should be invoked only once for a particular ledgerid
+// implements blockStoreProvider interface in factory.go
 func (p *BlockStoreProvider) Open(ledgerid string) (*BlockStore, error) {
+	logger.Debug("DBM opening blockchain ledger ", ledgerid)
 	indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
 	return newBlockStore(ledgerid, p.conf, p.indexConfig, indexStoreHandle, p.stats)
 }
@@ -115,6 +146,14 @@ func (p *BlockStoreProvider) ImportFromSnapshot(
 // Exists tells whether the BlockStore with given id exists
 func (p *BlockStoreProvider) Exists(ledgerid string) (bool, error) {
 	exists, err := fileutil.DirExists(p.conf.getLedgerBlockDir(ledgerid))
+	if err != nil {
+		return false, err
+	}
+
+	if !exists {
+		exists, err = fileutil.DirExists(p.conf.getMatrixLedgerBlockDir(ledgerid))
+	}
+
 	return exists, err
 }
 
@@ -137,17 +176,58 @@ func (p *BlockStoreProvider) Drop(ledgerid string) error {
 	if err := os.RemoveAll(p.conf.getLedgerBlockDir(ledgerid)); err != nil {
 		return err
 	}
+
+	if ok, err := fileutil.DirExists(p.conf.getMatrixLedgerBlockDir(ledgerid)); err != nil {
+		return err
+	} else if ok {
+		if err := os.RemoveAll(p.conf.getMatrixLedgerBlockDir(ledgerid)); err != nil {
+			return err
+		}
+
+		if err := fileutil.SyncDir(p.conf.getMatricesDir()); err != nil {
+			return err
+		}
+	}
+
 	return fileutil.SyncDir(p.conf.getChainsDir())
 }
 
 // List lists the ids of the existing ledgers
 func (p *BlockStoreProvider) List() ([]string, error) {
-	return fileutil.ListSubdirs(p.conf.getChainsDir())
+	list := make([]string, 0)
+
+	// get chain channels
+	ledgers, err := fileutil.ListSubdirs(p.conf.getChainsDir())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, l := range ledgers {
+		list = append(list, l)
+	}
+
+	// get matrix channels
+	ledgers, err = fileutil.ListSubdirs(p.conf.getMatricesDir())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, l := range ledgers {
+		list = append(list, l)
+	}
+
+	return list, nil
 }
 
 // Close closes the BlockStoreProvider
 func (p *BlockStoreProvider) Close() {
-	p.leveldbProvider.Close()
+	if p.leveldbProvider != nil {
+		p.leveldbProvider.Close()
+	}
+
+	for _, prov := range p.ledgerDBProviders {
+		prov.Close()
+	}
 }
 
 func dataFormatVersion(indexConfig *IndexConfig) string {

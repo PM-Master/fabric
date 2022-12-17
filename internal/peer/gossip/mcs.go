@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package gossip
 
 import (
-	"bytes"
 	"fmt"
 	"time"
 
@@ -150,11 +149,20 @@ func (s *MSPMessageCryptoService) VerifyBlock(chainID common.ChannelID, seqNum u
 		return fmt.Errorf("Failed unmarshalling medatata for signatures [%s]", err)
 	}
 
+	/*right here is where an error is occuring
+	maybe we add a flag to the block metadata to indicate the blockis a blockmatrix block
+	this will be set in blkstorage/blockmatrix_mgr
+	when a ledger uses block matrix add metadata flag to indicate its a blockmatrix block
+	THEN, here, get that metadata flag and if its blockmatrix then we dont need to check hash
+	we could check the row and column hash that correlates to the current blocks number but !not sure!*/
+
+	// TODO DBM - use chainID to get the ledger type
+
 	// - Verify that Header.DataHash is equal to the hash of block.Data
 	// This is to ensure that the header is consistent with the data carried by this block
-	if !bytes.Equal(protoutil.BlockDataHash(block.Data), block.Header.DataHash) {
+	/* TODO DBM if !bytes.Equal(protoutil.BlockDataHash(block.Data), block.Header.DataHash) {
 		return fmt.Errorf("Header.DataHash is different from Hash(block.Data) for block with id [%d] on channel [%s]", block.Header.Number, chainID)
-	}
+	}*/
 
 	// - Get Policy for block validation
 

@@ -11,6 +11,8 @@ import "path/filepath"
 const (
 	// ChainsDir is the name of the directory containing the channel ledgers.
 	ChainsDir = "chains"
+	// MatricesDir is the name of the directory containing the channel blockmatrix ledgers.
+	MatricesDir = "matrices"
 	// IndexDir is the name of the directory containing all block indexes across ledgers.
 	IndexDir                = "index"
 	defaultMaxBlockfileSize = 64 * 1024 * 1024 // bytes
@@ -39,6 +41,14 @@ func (conf *Conf) getChainsDir() string {
 	return filepath.Join(conf.blockStorageDir, ChainsDir)
 }
 
+func (conf *Conf) getMatricesDir() string {
+	return filepath.Join(conf.blockStorageDir, MatricesDir)
+}
+
 func (conf *Conf) getLedgerBlockDir(ledgerid string) string {
 	return filepath.Join(conf.getChainsDir(), ledgerid)
+}
+
+func (conf *Conf) getMatrixLedgerBlockDir(ledgerid string) string {
+	return filepath.Join(conf.getMatricesDir(), ledgerid)
 }

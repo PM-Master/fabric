@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package encoder
 
 import (
+	"fmt"
+
 	"github.com/golang/protobuf/proto"
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
@@ -22,6 +24,7 @@ import (
 	"github.com/hyperledger/fabric/msp"
 	"github.com/hyperledger/fabric/protoutil"
 	"github.com/pkg/errors"
+	redledger "github.com/usnistgov/redledger-core/blockmatrix"
 )
 
 const (
@@ -384,7 +387,7 @@ func NewConsortiumGroup(conf *genesisconfig.Consortium) (*cb.ConfigGroup, error)
 
 // NewChannelCreateConfigUpdate generates a ConfigUpdate which can be sent to the orderer to create a new channel.  Optionally, the channel group of the
 // ordering system channel may be passed in, and the resulting ConfigUpdate will extract the appropriate versions from this file.
-func NewChannelCreateConfigUpdate(channelID string, conf *genesisconfig.Profile, templateConfig *cb.ConfigGroup) (*cb.ConfigUpdate, error) {
+func NewChannelCreateConfigUpdate(channelID string, isBlockmatrix bool, conf *genesisconfig.Profile, templateConfig *cb.ConfigGroup) (*cb.ConfigUpdate, error) {
 	if conf.Application == nil {
 		return nil, errors.New("cannot define a new channel with no Application section")
 	}
@@ -411,6 +414,15 @@ func NewChannelCreateConfigUpdate(channelID string, conf *genesisconfig.Profile,
 		Value: protoutil.MarshalOrPanic(&cb.Consortium{
 			Name: conf.Consortium,
 		}),
+	}
+
+	// DBM put the ledger type if block matrix in the writeset's unrecognized field because
+	// putting ledger type in write set as a value causes validation issues
+	if isBlockmatrix {
+		updt.WriteSet.XXX_unrecognized, err = proto.Marshal(&redledger.LedgerType{Type: redledger.LedgerTypeString})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return updt, nil
@@ -484,6 +496,7 @@ func ConfigTemplateFromGroup(conf *genesisconfig.Profile, cg *cb.ConfigGroup) (*
 // It assumes the invoker has no system channel context so ignores all but the application section.
 func MakeChannelCreationTransaction(
 	channelID string,
+	isBlockmatrix bool,
 	signer identity.SignerSerializer,
 	conf *genesisconfig.Profile,
 ) (*cb.Envelope, error) {
@@ -491,7 +504,8 @@ func MakeChannelCreationTransaction(
 	if err != nil {
 		return nil, errors.WithMessage(err, "could not generate default config template")
 	}
-	return MakeChannelCreationTransactionFromTemplate(channelID, signer, conf, template)
+
+	return MakeChannelCreationTransactionFromTemplate(channelID, isBlockmatrix, signer, conf, template)
 }
 
 // MakeChannelCreationTransactionWithSystemChannelContext is a utility function for creating channel creation txes.
@@ -513,7 +527,7 @@ func MakeChannelCreationTransactionWithSystemChannelContext(
 		return nil, errors.WithMessage(err, "could not create config template")
 	}
 
-	return MakeChannelCreationTransactionFromTemplate(channelID, signer, conf, template)
+	return MakeChannelCreationTransactionFromTemplate(channelID, false, signer, conf, template)
 }
 
 // MakeChannelCreationTransactionFromTemplate creates a transaction for creating a channel.  It uses
@@ -521,14 +535,17 @@ func MakeChannelCreationTransactionWithSystemChannelContext(
 // MakeChannelCreationTransaction or MakeChannelCreationTransactionWithSystemChannelContext.
 func MakeChannelCreationTransactionFromTemplate(
 	channelID string,
+	isBlockmatrix bool,
 	signer identity.SignerSerializer,
 	conf *genesisconfig.Profile,
 	template *cb.ConfigGroup,
 ) (*cb.Envelope, error) {
-	newChannelConfigUpdate, err := NewChannelCreateConfigUpdate(channelID, conf, template)
+	newChannelConfigUpdate, err := NewChannelCreateConfigUpdate(channelID, isBlockmatrix, conf, template)
 	if err != nil {
 		return nil, errors.Wrap(err, "config update generation failure")
 	}
+
+	fmt.Println("newChannelConfigUpdate", newChannelConfigUpdate)
 
 	newConfigUpdateEnv := &cb.ConfigUpdateEnvelope{
 		ConfigUpdate: protoutil.MarshalOrPanic(newChannelConfigUpdate),

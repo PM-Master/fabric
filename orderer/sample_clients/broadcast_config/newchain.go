@@ -18,6 +18,7 @@ func newChainRequest(
 ) *cb.Envelope {
 	env, err := encoder.MakeChannelCreationTransaction(
 		newChannelID,
+		false,
 		signer,
 		genesisconfig.Load(genesisconfig.SampleSingleMSPChannelProfile),
 	)
