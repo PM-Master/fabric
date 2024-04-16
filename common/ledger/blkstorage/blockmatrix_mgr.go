@@ -240,15 +240,15 @@ func (mgr *blockmatrixMgr) saveBlockMatrixInfo(bmInfo *redledger.Info, bcInfo *c
 }
 
 /*
-	1. need to add the intended block
-	2. redo hashes
-	3. inspect block to get keys
-	4. process keys in block txs
-		- for keys with nil values this is a delete
-		- for keys with non nil values, we need to update the blocks and txs the key is in
-	5. The ONLY time we need to update blocks is if a key is being deleted
-		- the block with the deletion is not changed
-			- i.e. if block 1 tx 1 deletes key "k1", keep the KVWrite k1=nil in the block
+ 1. need to add the intended block
+ 2. redo hashes
+ 3. inspect block to get keys
+ 4. process keys in block txs
+    - for keys with nil values this is a delete
+    - for keys with non nil values, we need to update the blocks and txs the key is in
+ 5. The ONLY time we need to update blocks is if a key is being deleted
+    - the block with the deletion is not changed
+    - i.e. if block 1 tx 1 deletes key "k1", keep the KVWrite k1=nil in the block
 
 we know the blocks of the key being deleted
 get all blocks
@@ -478,11 +478,9 @@ func (mgr *blockmatrixMgr) rewriteBlocks(blockNum uint64, info *redledger.Info, 
 			err     error
 		)
 
-		logger.Debug("DBM original data hash", protoutil.BlockDataHash(block.Data))
 		if deleted, err = blockmatrix.RewriteBlock(block, keys); err != nil {
 			return err
 		}
-		logger.Debug("DBM new data hash", protoutil.BlockDataHash(block.Data))
 
 		// if no key was deleted skip index update
 		if !deleted {
@@ -550,7 +548,11 @@ func copyRowsAndColumns(info *redledger.Info) ([][]byte, [][]byte) {
 
 func (mgr *blockmatrixMgr) updateBlockmatrixInfo(info *redledger.Info, block *common.Block, newBlock bool) error {
 	row, col := redledger.LocateBlock(block.Header.Number)
-	hash := protoutil.BlockDataHash(block.Data)
+	hash, err := protoutil.BlockDataHash(block.Data)
+	if err != nil {
+		return err
+	}
+
 	return redledger.UpdateBlockmatrixInfo(info, newBlock, row, col, block.Header.Number, hash, mgr.fetchBlocks)
 }
 
@@ -562,12 +564,17 @@ func (mgr *blockmatrixMgr) fetchBlocks(blockNumbers []uint64) (map[uint64][]byte
 			if err != nil {
 				return nil, err
 			}
+
 			continue
 		} else if err != nil {
 			return nil, err
 		}
 
-		blocks[block.Header.Number] = protoutil.BlockDataHash(block.Data)
+		var bytes []byte
+		if bytes, err = protoutil.BlockDataHash(block.Data); err != nil {
+			return nil, err
+		}
+		blocks[block.Header.Number] = bytes
 	}
 
 	return blocks, nil

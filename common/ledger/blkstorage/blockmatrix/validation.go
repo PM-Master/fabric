@@ -7,7 +7,6 @@ import (
 
 	"github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/common/flogging"
 	"github.com/hyperledger/fabric/protoutil"
 )
 
@@ -91,38 +90,32 @@ func ComputeTxHash(metadata *common.BlockMetadata, txIndex int, txBytes []byte) 
 	return hash.Sum(nil), nil
 }
 
-func Validate(tIdx int, env []byte, metadata *common.BlockMetadata, logger *flogging.FabricLogger) peer.TxValidationCode {
+func Validate(tIdx int, env []byte, metadata *common.BlockMetadata) peer.TxValidationCode {
 	if metadata == nil {
-		logger.Debugf("metadata is nil")
 		return peer.TxValidationCode_INVALID_OTHER_REASON
 	}
 
 	if len(metadata.Metadata) <= BlockMetadataIndex_ValidatedTxUpdates {
-		logger.Debugf("no validated tx updates in metadata")
 		return peer.TxValidationCode_INVALID_OTHER_REASON
 	}
 
 	bytes := metadata.Metadata[BlockMetadataIndex_ValidatedTxUpdates]
 	vtuColl := &ValidatedTxUpdateCollection{}
 	if err := vtuColl.Unmarshal(bytes); err != nil {
-		logger.Debugf("error reading validated tx updates: %s", err)
 		return peer.TxValidationCode_INVALID_OTHER_REASON
 	}
 
 	computedHash, err := ComputeTxHash(metadata, tIdx, env)
 	if err != nil {
-		logger.Debugf("error computing tx hash: %s", err)
 		return peer.TxValidationCode_INVALID_OTHER_REASON
 	}
 
 	vtu, ok := vtuColl.ValidatedTxUpdates[tIdx]
 	if !ok {
-		logger.Debugf("no validated tx updates found for index %d", tIdx)
 		return peer.TxValidationCode_INVALID_OTHER_REASON
 	}
 
 	if !reflect.DeepEqual(computedHash, vtu.Hash) {
-		logger.Debugf("stored hash [%v] does not match computed hash [%v]", vtu.Hash, computedHash)
 		return peer.TxValidationCode_INVALID_OTHER_REASON
 	}
 

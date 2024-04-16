@@ -36,7 +36,7 @@ func newTestBlockmatrixWrapper(env *testEnv, ledgerid string, createGenesis bool
 		err = blkStore.AddBlock(gb)
 		require.NoError(env.t, err)
 
-		r1, c1, _ := redledger.CalculateExpectedHashes(protoutil.BlockDataHash, blkStore.fileMgr.blockmatrixMgr.getBlockmatrixInfo().Size, gb)
+		r1, c1, _ := redledger.CalculateExpectedHashes(hashFunc(env), blkStore.fileMgr.blockmatrixMgr.getBlockmatrixInfo().Size, gb)
 		require.Equal(env.t, &redledger.Info{
 			Size:         blkStore.fileMgr.blockmatrixMgr.getBlockmatrixInfo().Size,
 			BlockCount:   1,
@@ -46,6 +46,17 @@ func newTestBlockmatrixWrapper(env *testEnv, ledgerid string, createGenesis bool
 	}
 
 	return &testBlockfileMgrWrapper{env.t, blkStore.fileMgr}, gb
+}
+
+func hashFunc(env *testEnv) func(b *cb.BlockData) []byte {
+	return func(b *cb.BlockData) []byte {
+		hash, err := protoutil.BlockDataHash(b)
+		if err != nil {
+			require.NoError(env.t, err)
+		}
+
+		return hash
+	}
 }
 
 func GenesisBlock(env *testEnv, ledgerid string) *cb.Block {
@@ -141,7 +152,7 @@ func GenesisBlock(env *testEnv, ledgerid string) *cb.Block {
 }
 
 func TestBlockRewriteSeveralBlocks(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -188,7 +199,7 @@ func TestBlockRewriteSeveralBlocks(t *testing.T) {
 }
 
 func TestBlockRewrite(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -200,7 +211,7 @@ func TestBlockRewrite(t *testing.T) {
 
 	blkfileMgrWrapper.addBlocks([]*common.Block{block1})
 
-	r, c, err := redledger.CalculateExpectedHashes(protoutil.BlockDataHash, 2, gb, block1)
+	r, c, err := redledger.CalculateExpectedHashes(hashFunc(env), 2, gb, block1)
 	require.NoError(t, err)
 	require.Equal(t, &redledger.Info{
 		Size:         2,
@@ -247,7 +258,7 @@ func TestBlockRewrite(t *testing.T) {
 	require.NoError(t, err)
 
 	bmInfo := blkfileMgrWrapper.blockfileMgr.getBlockmatrixInfo()
-	r, c, err = redledger.CalculateExpectedHashes(protoutil.BlockDataHash, 3, gb, block1, block2)
+	r, c, err = redledger.CalculateExpectedHashes(hashFunc(env), 3, gb, block1, block2)
 	require.Equal(t, &redledger.Info{
 		Size:         3,
 		BlockCount:   3,
@@ -301,7 +312,7 @@ func createRWset(t *testing.T, nsKVs map[string]map[string]string) []byte {
 }
 
 func TestMatrixBlockfileMgrBlockReadWrite(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -313,7 +324,7 @@ func TestMatrixBlockfileMgrBlockReadWrite(t *testing.T) {
 }
 
 func TestMatrixBlockfileMgrBlockIterator(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -342,7 +353,7 @@ func testMatrixBlockfileMgrBlockIterator(t *testing.T, blockfileMgr *blockfileMg
 }
 
 func TestMatrixBlockfileMgrBlockchainInfo(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -362,7 +373,7 @@ func TestMatrixBlockfileMgrBlockchainInfo(t *testing.T) {
 
 func TestMatrixTxIDExists(t *testing.T) {
 	t.Run("green-path", func(t *testing.T) {
-		env := newTestEnv(t, NewConf(testPath(), 0))
+		env := newTestEnv(t, NewConf(t.TempDir(), 0))
 		defer env.Cleanup()
 
 		blkStore, err := env.provider.Open("testLedger")
@@ -392,7 +403,7 @@ func TestMatrixTxIDExists(t *testing.T) {
 	})
 
 	t.Run("error-path", func(t *testing.T) {
-		env := newTestEnv(t, NewConf(testPath(), 0))
+		env := newTestEnv(t, NewConf(t.TempDir(), 0))
 		defer env.Cleanup()
 
 		blkStore, err := env.provider.Open("testLedger")
@@ -407,7 +418,7 @@ func TestMatrixTxIDExists(t *testing.T) {
 }
 
 func TestMatrixBlockfileMgrGetTxById(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -431,7 +442,7 @@ func TestMatrixBlockfileMgrGetTxById(t *testing.T) {
 // TestBlockfileMgrGetTxByIdDuplicateTxid tests that a transaction with an existing txid
 // (within same block or a different block) should not over-write the index by-txid (FAB-8557)
 func TestMatrixBlockfileMgrGetTxByIdDuplicateTxid(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkStore, err := env.provider.Open("testLedger")
 	require.NoError(env.t, err)
@@ -546,7 +557,7 @@ func TestMatrixBlockfileMgrGetTxByIdDuplicateTxid(t *testing.T) {
 }
 
 func TestMatrixBlockfileMgrGetTxByBlockNumTranNum(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -566,7 +577,7 @@ func TestMatrixBlockfileMgrGetTxByBlockNumTranNum(t *testing.T) {
 }
 
 func TestMatrixBlockfileMgrRestart(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	ledgerid := "testLedger"
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, ledgerid, true)
@@ -583,36 +594,37 @@ func TestMatrixBlockfileMgrRestart(t *testing.T) {
 	require.Equal(t, expectedHeight, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.getBlockchainInfo().Height)
 }
 
-/*func TestMatrixBlockfileMgrFileRolling(t *testing.T) {
-	blocks := testutil.ConstructTestBlocks(t, 200)
-	size := 0
-	for _, block := range blocks[:100] {
-		by, _, err := serializeBlock(block)
-		require.NoError(t, err, "Error while serializing block")
-		blockBytesSize := len(by)
-		encodedLen := proto.EncodeVarint(uint64(blockBytesSize))
-		size += blockBytesSize + len(encodedLen)
+/*
+	func TestMatrixBlockfileMgrFileRolling(t *testing.T) {
+		blocks := testutil.ConstructTestBlocks(t, 200)
+		size := 0
+		for _, block := range blocks[:100] {
+			by, _, err := serializeBlock(block)
+			require.NoError(t, err, "Error while serializing block")
+			blockBytesSize := len(by)
+			encodedLen := proto.EncodeVarint(uint64(blockBytesSize))
+			size += blockBytesSize + len(encodedLen)
+		}
+
+		maxFileSie := int(0.75 * float64(size))
+		env := newTestEnv(t, NewConf(t.TempDir(), maxFileSie))
+		defer env.Cleanup()
+		ledgerid := "testLedger"
+		blkfileMgrWrapper := newTestBlockmatrixWrapper(env, ledgerid)
+		blkfileMgrWrapper.addBlocks(blocks[:100])
+		require.Equal(t, 1, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo.latestFileNumber)
+		blkfileMgrWrapper.testGetBlockByHash(blocks[:100])
+		blkfileMgrWrapper.close()
+
+		blkfileMgrWrapper = newTestBlockmatrixWrapper(env, ledgerid)
+		defer blkfileMgrWrapper.close()
+		blkfileMgrWrapper.addBlocks(blocks[100:])
+		require.Equal(t, 2, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo.latestFileNumber)
+		blkfileMgrWrapper.testGetBlockByHash(blocks[100:])
 	}
-
-	maxFileSie := int(0.75 * float64(size))
-	env := newTestEnv(t, NewConf(testPath(), maxFileSie))
-	defer env.Cleanup()
-	ledgerid := "testLedger"
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, ledgerid)
-	blkfileMgrWrapper.addBlocks(blocks[:100])
-	require.Equal(t, 1, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo.latestFileNumber)
-	blkfileMgrWrapper.testGetBlockByHash(blocks[:100])
-	blkfileMgrWrapper.close()
-
-	blkfileMgrWrapper = newTestBlockmatrixWrapper(env, ledgerid)
-	defer blkfileMgrWrapper.close()
-	blkfileMgrWrapper.addBlocks(blocks[100:])
-	require.Equal(t, 2, blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo.latestFileNumber)
-	blkfileMgrWrapper.testGetBlockByHash(blocks[100:])
-}
 */
 func TestMatrixBlockfileMgrGetBlockByTxID(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -641,63 +653,64 @@ func TestMatrixBlockfileMgrGetBlockByTxID(t *testing.T) {
 	})
 }*/
 
-/*func testMatrixBlockfileMgrSimulateCrashAtFirstBlockInFile(t *testing.T, deleteBlkfilesInfo bool) {
-	// open blockfileMgr and add 5 blocks
-	env := newTestEnv(t, NewConf(testPath(), 0))
-	defer env.Cleanup()
+/*
+	func testMatrixBlockfileMgrSimulateCrashAtFirstBlockInFile(t *testing.T, deleteBlkfilesInfo bool) {
+		// open blockfileMgr and add 5 blocks
+		env := newTestEnv(t, NewConf(t.TempDir(), 0))
+		defer env.Cleanup()
 
-	blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
-	blockfileMgr := blkfileMgrWrapper.blockfileMgr
-	blocks := testutil.ConstructTestBlocks(t, 10)
-	for i := 0; i < 10; i++ {
-		fmt.Printf("blocks[i].Header.Number = %d\n", blocks[i].Header.Number)
-	}
-	blkfileMgrWrapper.addBlocks(blocks[:5])
-	firstFilePath := blockfileMgr.currentFileWriter.filePath
-	firstBlkFileSize := testmatrixutilGetFileSize(t, firstFilePath)
+		blkfileMgrWrapper := newTestBlockmatrixWrapper(env, "testLedger")
+		blockfileMgr := blkfileMgrWrapper.blockfileMgr
+		blocks := testutil.ConstructTestBlocks(t, 10)
+		for i := 0; i < 10; i++ {
+			fmt.Printf("blocks[i].Header.Number = %d\n", blocks[i].Header.Number)
+		}
+		blkfileMgrWrapper.addBlocks(blocks[:5])
+		firstFilePath := blockfileMgr.currentFileWriter.filePath
+		firstBlkFileSize := testmatrixutilGetFileSize(t, firstFilePath)
 
-	// move to next file and simulate crash scenario while writing the first block
-	blockfileMgr.moveToNextFile()
-	partialBytesForNextBlock := append(
-		proto.EncodeVarint(uint64(10000)),
-		[]byte("partialBytesForNextBlock depicting a crash during first block in file")...,
-	)
-	blockfileMgr.currentFileWriter.append(partialBytesForNextBlock, true)
-	if deleteBlkfilesInfo {
-		err := blockfileMgr.db.Delete(blkMgrInfoKey, true)
+		// move to next file and simulate crash scenario while writing the first block
+		blockfileMgr.moveToNextFile()
+		partialBytesForNextBlock := append(
+			proto.EncodeVarint(uint64(10000)),
+			[]byte("partialBytesForNextBlock depicting a crash during first block in file")...,
+		)
+		blockfileMgr.currentFileWriter.append(partialBytesForNextBlock, true)
+		if deleteBlkfilesInfo {
+			err := blockfileMgr.db.Delete(blkMgrInfoKey, true)
+			require.NoError(t, err)
+		}
+		blkfileMgrWrapper.close()
+
+		// verify that the block file number 1 has been created with partial bytes as a side-effect of crash
+		lastFilePath := blockfileMgr.currentFileWriter.filePath
+		lastFileContent, err := ioutil.ReadFile(lastFilePath)
 		require.NoError(t, err)
+		require.Equal(t, lastFileContent, partialBytesForNextBlock)
+
+		// simulate reopen after crash
+		blkfileMgrWrapper = newTestBlockmatrixWrapper(env, "testLedger")
+		defer blkfileMgrWrapper.close()
+
+		// last block file (block file number 1) should have been truncated to zero length and concluded as the next file to append to
+		require.Equal(t, 0, testmatrixutilGetFileSize(t, lastFilePath))
+		require.Equal(t,
+			&blockfilesInfo{
+				latestFileNumber:   1,
+				latestFileSize:     0,
+				lastPersistedBlock: 4,
+				noBlockFiles:       false,
+			},
+			blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo,
+		)
+
+		// Add 5 more blocks and assert that they are added to last file (block file number 1) and full scanning across two files works as expected
+		blkfileMgrWrapper.addBlocks(blocks[5:])
+		require.True(t, testmatrixutilGetFileSize(t, lastFilePath) > 0)
+		require.Equal(t, firstBlkFileSize, testmatrixutilGetFileSize(t, firstFilePath))
+		blkfileMgrWrapper.testGetBlockByNumber(blocks)
+		testMatrixBlockfileMgrBlockIterator(t, blkfileMgrWrapper.blockfileMgr, 0, len(blocks)-1, blocks)
 	}
-	blkfileMgrWrapper.close()
-
-	// verify that the block file number 1 has been created with partial bytes as a side-effect of crash
-	lastFilePath := blockfileMgr.currentFileWriter.filePath
-	lastFileContent, err := ioutil.ReadFile(lastFilePath)
-	require.NoError(t, err)
-	require.Equal(t, lastFileContent, partialBytesForNextBlock)
-
-	// simulate reopen after crash
-	blkfileMgrWrapper = newTestBlockmatrixWrapper(env, "testLedger")
-	defer blkfileMgrWrapper.close()
-
-	// last block file (block file number 1) should have been truncated to zero length and concluded as the next file to append to
-	require.Equal(t, 0, testmatrixutilGetFileSize(t, lastFilePath))
-	require.Equal(t,
-		&blockfilesInfo{
-			latestFileNumber:   1,
-			latestFileSize:     0,
-			lastPersistedBlock: 4,
-			noBlockFiles:       false,
-		},
-		blkfileMgrWrapper.blockfileMgr.blockmatrixMgr.blkFilesInfo,
-	)
-
-	// Add 5 more blocks and assert that they are added to last file (block file number 1) and full scanning across two files works as expected
-	blkfileMgrWrapper.addBlocks(blocks[5:])
-	require.True(t, testmatrixutilGetFileSize(t, lastFilePath) > 0)
-	require.Equal(t, firstBlkFileSize, testmatrixutilGetFileSize(t, firstFilePath))
-	blkfileMgrWrapper.testGetBlockByNumber(blocks)
-	testMatrixBlockfileMgrBlockIterator(t, blkfileMgrWrapper.blockfileMgr, 0, len(blocks)-1, blocks)
-}
 */
 func testmatrixutilGetFileSize(t *testing.T, path string) int {
 	fi, err := os.Stat(path)
@@ -706,7 +719,7 @@ func testmatrixutilGetFileSize(t *testing.T, path string) int {
 }
 
 func TestName(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -720,7 +733,7 @@ func TestName(t *testing.T) {
 
 // itr tests
 func TestMatrixBlocksItrBlockingNext(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, gb := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -744,7 +757,7 @@ func TestMatrixBlocksItrBlockingNext(t *testing.T) {
 }
 
 func TestMatrixBlockItrClose(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -766,7 +779,7 @@ func TestMatrixBlockItrClose(t *testing.T) {
 }
 
 func TestMatrixRaceToDeadlock(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -799,7 +812,7 @@ func TestMatrixRaceToDeadlock(t *testing.T) {
 }
 
 func TestMatrixBlockItrCloseWithoutRetrieve(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()
@@ -813,7 +826,7 @@ func TestMatrixBlockItrCloseWithoutRetrieve(t *testing.T) {
 }
 
 func TestMatrixCloseMultipleItrsWaitForFutureBlock(t *testing.T) {
-	env := newTestEnv(t, NewConf(testPath(), 0))
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
 	blkfileMgrWrapper, _ := newTestBlockmatrixWrapper(env, "testLedger", true)
 	defer blkfileMgrWrapper.close()

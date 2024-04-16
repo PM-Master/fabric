@@ -2,6 +2,8 @@ package test
 
 import (
 	"fmt"
+	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
+	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,11 +12,9 @@ import (
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric-protos-go/peer"
-	"github.com/hyperledger/fabric/bccsp/sw"
 	"github.com/hyperledger/fabric/common/genesis"
 	"github.com/hyperledger/fabric/common/ledger/blkstorage/blockmatrix"
 	"github.com/hyperledger/fabric/common/ledger/testutil"
-	"github.com/hyperledger/fabric/common/metrics/disabled"
 	"github.com/hyperledger/fabric/common/util"
 	"github.com/hyperledger/fabric/core/config/configtest"
 	lgr "github.com/hyperledger/fabric/core/ledger"
